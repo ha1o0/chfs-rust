@@ -8,3 +8,6 @@ edition = "2021"
 [dependencies]
 hyper = {version = "0.14", features = ["full"]}
 tokio = { version = "1", features = ["full"] }
+xml-rs = "0.8.16"
+url = "2.4.1"
+log = "0.4.20"
