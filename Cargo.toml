@@ -11,3 +11,6 @@ tokio = { version = "1", features = ["full"] }
 xml-rs = "0.8.16"
 url = "2.4.1"
 log = "0.4.20"
+chrono = "0.4.28"
+mime_guess = "2.0.4"
+md5 = "0.7.0"
