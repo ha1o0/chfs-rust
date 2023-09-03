@@ -8,33 +8,28 @@ use std::path::{Path, PathBuf};
 
 pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infallible> {
     let resp;
-    let server_prefix = "/webdav/".to_string();
-    let req_path = req.uri().path();
-    println!("path: {}", req_path);
-    println!("req: {:?}", req);
-    if !req_path.starts_with(&server_prefix) {
+    // webdav 访问路径前缀
+    let server_prefix = "/webdav";
+    let req_path = get_req_path(&req);
+    // 要挂载的目录
+    let base_dir = "/Users/halo/webdav/";
+    let mut path = req_path.to_string();
+    path.replace_range(0..server_prefix.len(), "");
+    // 被访问资源绝对路径
+    let full_path = Path::new(base_dir).join(path.trim_start_matches('/'));
+    if !full_path.exists() && !full_path.is_dir() {
+        return Ok(Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::empty())
+            .unwrap());
+    }
+    println!("req: {:?}", &req);
+    if !req_path.starts_with("/webdav") {
         resp = Response::new(Body::from("Hello"));
     } else {
         let method = req.method();
         if method == Method::from_bytes(b"PROPFIND").unwrap() {
-            let mut path = req_path.to_string();
-            path.replace_range(0..server_prefix.len(), "");
-            // 要挂载的目录
-            let base_dir = "/Users/halo/webdav/";
-            let full_path = Path::new(base_dir).join(path.trim_start_matches('/'));
-            if !full_path.exists() || !full_path.is_dir() {
-                return Ok(Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .body(Body::empty())
-                    .unwrap());
-            }
-            let depth;
-            if let Some(depth_value) = get_header_value(req, "depth") {
-                depth = depth_value;
-            } else {
-                depth = "0".to_string();
-            }
-            let multistatus_xml = generate_resp_xml(path, full_path, depth, server_prefix);
+            let multistatus_xml = handle_propfind_resp(&req, path, full_path, server_prefix);
             resp = Response::builder()
                 .status(StatusCode::MULTI_STATUS)
                 .header("Content-Type", "application/xml; charset=utf-8")
@@ -69,12 +64,27 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
     Ok(resp)
 }
 
-fn generate_resp_xml(
+fn get_depth(req: &Request<Body>) -> String {
+    let depth;
+    if let Some(depth_value) = get_header_value(req, "depth") {
+        depth = depth_value;
+    } else {
+        depth = "0".to_string();
+    }
+    depth
+}
+
+fn get_req_path(req: &Request<Body>) -> String {
+    req.uri().path().to_string()
+}
+
+fn handle_propfind_resp(
+    req: &Request<Body>,
     path: String,
     full_path: PathBuf,
-    depth: String,
-    server_prefix: String,
+    server_prefix: &str,
 ) -> String {
+    let depth = get_depth(req);
     let mut multistatus_xml = String::new();
     multistatus_xml.push_str(r#"<?xml version="1.0" encoding="utf-8"?>"#);
     multistatus_xml.push_str(r#"<D:multistatus xmlns:D="DAV:">"#);
@@ -103,13 +113,17 @@ fn generate_content_xml(
     multistatus_xml: &mut String,
     entry_path: PathBuf,
     entry_name: String,
-    server_prefix: String,
+    server_prefix: &str,
 ) {
+    let mut server_prefix_with_suffix = server_prefix.to_string();
+    if !server_prefix_with_suffix.ends_with("/") {
+        server_prefix_with_suffix += "/";
+    }
     multistatus_xml.push_str("<D:response>\n");
     multistatus_xml.push_str(
         format!(
             "<D:href>{}</D:href>\n",
-            format!("{}{}", server_prefix, entry_name)
+            format!("{}{}", server_prefix_with_suffix, entry_name)
         )
         .as_str(),
     );
@@ -153,7 +167,7 @@ fn generate_content_xml(
     multistatus_xml.push_str("</D:response>\n");
 }
 
-fn get_header_value(req: Request<Body>, header_name: &str) -> Option<String> {
+fn get_header_value(req: &Request<Body>, header_name: &str) -> Option<String> {
     // 获取HTTP请求的头部
     let headers: &HeaderMap = req.headers();
     // 使用header_name获取特定的头部值
