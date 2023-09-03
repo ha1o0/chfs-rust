@@ -1,3 +1,4 @@
+use chrono::Local;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use md5;
 use mime_guess::from_path;
@@ -30,7 +31,7 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
     // 实现各个 HTTP 方法
     let method = req.method();
     if method == Method::from_bytes(b"PROPFIND").unwrap() {
-        println!("prop: {}, {:?}", path, full_path);
+        // println!("prop: {}, {:?}", path, full_path);
         let multistatus_xml = handle_propfind_resp(&req, full_path, server_prefix, base_dir);
         resp = Response::builder()
             .status(StatusCode::MULTI_STATUS)
@@ -63,7 +64,11 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
     }
 
     if method != Method::GET {
-        println!("resp: {:?}", resp);
+        println!(
+            "{}---resp: {:?}",
+            Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+            resp
+        );
     }
     Ok(resp)
 }
@@ -89,7 +94,7 @@ fn handle_propfind_resp(
         for entry in fs::read_dir(&full_path).unwrap() {
             if let Ok(entry) = entry {
                 let entry_path = entry.path();
-                println!("sub: {:?}, {}", entry_path, base_dir);
+                // println!("sub: {:?}, {}", entry_path, base_dir);
                 generate_content_xml(
                     &mut multistatus_xml,
                     entry_path,
@@ -146,10 +151,10 @@ fn generate_content_xml(
     }
     let mut relative_path = entry_path.to_string_lossy().to_owned().to_string();
     relative_path.replace_range(0..base_dir.len(), &server_prefix_with_suffix);
-    println!(
-        "inner: {}---{}==={:?}",
-        server_prefix_with_suffix, base_dir, entry_path
-    );
+    // println!(
+    //     "inner: {}---{}==={:?}",
+    //     server_prefix_with_suffix, base_dir, entry_path
+    // );
     multistatus_xml.push_str("<D:response>\n");
     multistatus_xml.push_str(
         format!(
