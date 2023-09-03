@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use hyper::{Body, HeaderMap, Request};
+use urlencoding::{decode, encode};
 
 pub fn get_depth(req: &Request<Body>) -> String {
     let depth;
@@ -12,8 +13,31 @@ pub fn get_depth(req: &Request<Body>) -> String {
 }
 
 pub fn get_req_path(req: &Request<Body>) -> String {
-    req.uri().path().to_string()
+    let path = req.uri().path();
+    decode_uri(path)
+    // encode_uri(path)
 }
+
+pub fn decode_uri(uri: &str) -> String {
+    decode(uri).unwrap().to_string()
+}
+
+pub fn encode_uri(uri: &str) -> String {
+    encode(uri).to_string()
+}
+
+// pub fn generate_body(status: StatusCode) -> Response<Body> {
+//     let resp;
+//     match status {
+//         StatusCode::NOT_FOUND => {
+//             resp = Response::builder()
+//                 .status(StatusCode::NOT_FOUND)
+//                 .body(Body::empty())
+//                 .unwrap();
+//         }
+//     }
+//     resp
+// }
 
 pub fn get_header_value(req: &Request<Body>, header_name: &str) -> Option<String> {
     // 获取HTTP请求的头部

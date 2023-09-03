@@ -2,10 +2,11 @@ use hyper::{Body, Method, Request, Response, StatusCode};
 use md5;
 use mime_guess::from_path;
 use std::convert::Infallible;
-use std::fs::{self};
+use std::fs::{self, File};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use crate::util::{format_date_time, get_depth, get_req_path};
+use crate::util::{encode_uri, format_date_time, get_depth, get_req_path};
 
 pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infallible> {
     let resp;
@@ -17,7 +18,7 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
     let mut path = req_path.to_string();
     path.replace_range(0..server_prefix.len(), "");
     // 被访问资源绝对路径
-    let full_path = Path::new(base_dir).join(path.trim_start_matches('/'));
+    let full_path = Path::new(&base_dir).join(path.trim_start_matches('/'));
     if !full_path.exists() && !full_path.is_dir() || !req_path.starts_with("/webdav") {
         return Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
@@ -29,7 +30,8 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
     // 实现各个 HTTP 方法
     let method = req.method();
     if method == Method::from_bytes(b"PROPFIND").unwrap() {
-        let multistatus_xml = handle_propfind_resp(&req, path, full_path, server_prefix);
+        println!("prop: {}, {:?}", path, full_path);
+        let multistatus_xml = handle_propfind_resp(&req, full_path, server_prefix, base_dir);
         resp = Response::builder()
             .status(StatusCode::MULTI_STATUS)
             .header("Content-Type", "application/xml; charset=utf-8")
@@ -49,7 +51,7 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
                     .unwrap();
             }
             &Method::GET => {
-                resp = Response::new(Body::from("Hello, Webdav, GET"));
+                resp = handle_get_resp(&full_path).await;
             }
             &Method::PUT => {
                 resp = Response::new(Body::from("Hello, Webdav, PUT"));
@@ -60,31 +62,38 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
         }
     }
 
-    println!("resp: {:?}", resp);
+    if method != Method::GET {
+        println!("resp: {:?}", resp);
+    }
     Ok(resp)
 }
 
 fn handle_propfind_resp(
     req: &Request<Body>,
-    path: String,
     full_path: PathBuf,
     server_prefix: &str,
+    base_dir: &str,
 ) -> String {
     let depth = get_depth(req);
     let mut multistatus_xml = String::new();
     multistatus_xml.push_str(r#"<?xml version="1.0" encoding="utf-8"?>"#);
     multistatus_xml.push_str(r#"<D:multistatus xmlns:D="DAV:">"#);
     if depth == "0" {
-        generate_content_xml(&mut multistatus_xml, full_path, path, server_prefix.clone());
+        generate_content_xml(
+            &mut multistatus_xml,
+            full_path,
+            base_dir,
+            server_prefix.clone(),
+        );
     } else {
         for entry in fs::read_dir(&full_path).unwrap() {
             if let Ok(entry) = entry {
                 let entry_path = entry.path();
-                let entry_name = entry.file_name().to_string_lossy().into_owned();
+                println!("sub: {:?}, {}", entry_path, base_dir);
                 generate_content_xml(
                     &mut multistatus_xml,
                     entry_path,
-                    entry_name,
+                    base_dir,
                     server_prefix.clone(),
                 );
             }
@@ -95,21 +104,57 @@ fn handle_propfind_resp(
     multistatus_xml
 }
 
+async fn handle_get_resp(full_path: &PathBuf) -> Response<Body> {
+    let file = match File::open(full_path) {
+        Ok(file) => file,
+        Err(_) => {
+            println!("not found");
+            return Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Body::empty())
+                .unwrap();
+        }
+    };
+    let mime_type = from_path(full_path).first_or_octet_stream();
+    // 读取文件内容
+    let mut buffer = Vec::new();
+    match file.take(usize::MAX as u64).read_to_end(&mut buffer) {
+        Ok(_) => Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", mime_type.as_ref())
+            .body(Body::from(buffer))
+            .unwrap(),
+        Err(_) => {
+            println!("not found2");
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::empty())
+                .unwrap();
+        }
+    }
+}
+
 fn generate_content_xml(
     multistatus_xml: &mut String,
     entry_path: PathBuf,
-    entry_name: String,
+    base_dir: &str,
     server_prefix: &str,
 ) {
     let mut server_prefix_with_suffix = server_prefix.to_string();
     if !server_prefix_with_suffix.ends_with("/") {
         server_prefix_with_suffix += "/";
     }
+    let mut relative_path = entry_path.to_string_lossy().to_owned().to_string();
+    relative_path.replace_range(0..base_dir.len(), &server_prefix_with_suffix);
+    println!(
+        "inner: {}---{}==={:?}",
+        server_prefix_with_suffix, base_dir, entry_path
+    );
     multistatus_xml.push_str("<D:response>\n");
     multistatus_xml.push_str(
         format!(
             "<D:href>{}</D:href>\n",
-            format!("{}{}", server_prefix_with_suffix, entry_name)
+            format!("{}", encode_uri(&relative_path))
         )
         .as_str(),
     );
