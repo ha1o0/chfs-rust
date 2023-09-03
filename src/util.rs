@@ -2,14 +2,28 @@ use chrono::{DateTime, Utc};
 use hyper::{Body, HeaderMap, Request};
 use urlencoding::{decode, encode};
 
-pub fn get_depth(req: &Request<Body>) -> String {
-    let depth;
-    if let Some(depth_value) = get_header_value(req, "depth") {
-        depth = depth_value;
-    } else {
-        depth = "0".to_string();
+pub fn get_depth(req: &Request<Body>) -> &str {
+    let mut result = "0";
+    if let Some(value) = get_header_value(req, "depth") {
+        result = value;
     }
-    depth
+    result
+}
+
+pub fn get_protocol(req: &Request<Body>) -> &str {
+    let mut result = "http";
+    if let Some(uri) = req.uri().scheme_str() {
+        result = uri;
+    }
+    result
+}
+
+pub fn get_host(req: &Request<Body>) -> &str {
+    let mut result = "";
+    if let Some(value) = get_header_value(req, "host") {
+        result = value;
+    }
+    result
 }
 
 pub fn get_req_path(req: &Request<Body>) -> String {
@@ -23,7 +37,7 @@ pub fn decode_uri(uri: &str) -> String {
 }
 
 pub fn encode_uri(uri: &str) -> String {
-    encode(uri).to_string()
+    encode(uri).to_string().replace("%2F", "/")
 }
 
 // pub fn generate_body(status: StatusCode) -> Response<Body> {
@@ -39,14 +53,14 @@ pub fn encode_uri(uri: &str) -> String {
 //     resp
 // }
 
-pub fn get_header_value(req: &Request<Body>, header_name: &str) -> Option<String> {
+pub fn get_header_value<'a>(req: &'a Request<Body>, header_name: &'a str) -> Option<&'a str> {
     // 获取HTTP请求的头部
     let headers: &HeaderMap = req.headers();
     // 使用header_name获取特定的头部值
     if let Some(header_value) = headers.get(header_name) {
         // 将头部值转换为字符串
         if let Ok(header_str) = header_value.to_str() {
-            return Some(header_str.to_string());
+            return Some(header_str);
         }
     }
     None

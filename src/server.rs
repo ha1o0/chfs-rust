@@ -7,7 +7,7 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use crate::util::{encode_uri, format_date_time, get_depth, get_req_path};
+use crate::util::{encode_uri, format_date_time, get_depth, get_host, get_protocol, get_req_path};
 
 pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infallible> {
     let resp;
@@ -69,6 +69,8 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
             Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             resp
         );
+    } else {
+        println!("{:?}", resp.headers());
     }
     Ok(resp)
 }
@@ -85,6 +87,7 @@ fn handle_propfind_resp(
     multistatus_xml.push_str(r#"<D:multistatus xmlns:D="DAV:">"#);
     if depth == "0" {
         generate_content_xml(
+            req,
             &mut multistatus_xml,
             full_path,
             base_dir,
@@ -96,6 +99,7 @@ fn handle_propfind_resp(
                 let entry_path = entry.path();
                 // println!("sub: {:?}, {}", entry_path, base_dir);
                 generate_content_xml(
+                    req,
                     &mut multistatus_xml,
                     entry_path,
                     base_dir,
@@ -140,6 +144,7 @@ async fn handle_get_resp(full_path: &PathBuf) -> Response<Body> {
 }
 
 fn generate_content_xml(
+    req: &Request<Body>,
     multistatus_xml: &mut String,
     entry_path: PathBuf,
     base_dir: &str,
@@ -156,13 +161,13 @@ fn generate_content_xml(
     //     server_prefix_with_suffix, base_dir, entry_path
     // );
     multistatus_xml.push_str("<D:response>\n");
-    multistatus_xml.push_str(
-        format!(
-            "<D:href>{}</D:href>\n",
-            format!("{}", encode_uri(&relative_path))
-        )
-        .as_str(),
-    );
+    let protocol = get_protocol(&req);
+    let host = get_host(&req);
+    let encode_relative_path = encode_uri(&relative_path);
+    let href = protocol.to_string() + "://" + &host + &encode_relative_path;
+    println!("protocol: {}", href);
+    multistatus_xml
+        .push_str(format!("<D:href>{}</D:href>\n", format!("{}", encode_relative_path)).as_str());
     multistatus_xml.push_str("<D:propstat>\n");
     multistatus_xml.push_str("<D:prop>\n");
 
@@ -175,6 +180,7 @@ fn generate_content_xml(
         let mime_type = from_path(&entry_path).first_or_octet_stream().to_string();
         let content_length = metadata.len();
         multistatus_xml.push_str(format!("<D:resourcetype/>\n").as_str());
+        multistatus_xml.push_str(format!("<D:supportedlock/>\n").as_str());
         multistatus_xml.push_str(
             format!(
                 "<D:getcontentlength>{}</D:getcontentlength>\n",
