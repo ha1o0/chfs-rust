@@ -1,13 +1,17 @@
 use chrono::Local;
+use hyper::http;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use md5;
 use mime_guess::from_path;
 use std::convert::Infallible;
 use std::fs::{self, File};
-use std::io::Read;
+use std::io::{self, Read, Seek};
 use std::path::{Path, PathBuf};
 
-use crate::util::{encode_uri, format_date_time, get_depth, get_host, get_protocol, get_req_path};
+use crate::util::{
+    encode_uri, format_date_time, get_creation_date, get_depth, get_host, get_protocol, get_range,
+    get_req_path,
+};
 
 pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infallible> {
     let resp;
@@ -19,8 +23,8 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
     let mut path = req_path.to_string();
     path.replace_range(0..server_prefix.len(), "");
     // 被访问资源绝对路径
-    let full_path = Path::new(&base_dir).join(path.trim_start_matches('/'));
-    if !full_path.exists() && !full_path.is_dir() || !req_path.starts_with("/webdav") {
+    let file_path = Path::new(&base_dir).join(path.trim_start_matches('/'));
+    if !file_path.exists() && !file_path.is_dir() || !req_path.starts_with("/webdav") {
         return Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Body::empty())
@@ -31,8 +35,8 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
     // 实现各个 HTTP 方法
     let method = req.method();
     if method == Method::from_bytes(b"PROPFIND").unwrap() {
-        // println!("prop: {}, {:?}", path, full_path);
-        let multistatus_xml = handle_propfind_resp(&req, full_path, server_prefix, base_dir);
+        // println!("prop: {}, {:?}", path, file_path);
+        let multistatus_xml = handle_propfind_resp(&req, file_path, server_prefix, base_dir);
         resp = Response::builder()
             .status(StatusCode::MULTI_STATUS)
             .header("Content-Type", "application/xml; charset=utf-8")
@@ -52,7 +56,7 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
                     .unwrap();
             }
             &Method::GET => {
-                resp = handle_get_resp(&full_path).await;
+                resp = handle_get_resp(&req, &file_path).await;
             }
             &Method::PUT => {
                 resp = Response::new(Body::from("Hello, Webdav, PUT"));
@@ -77,7 +81,7 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
 
 fn handle_propfind_resp(
     req: &Request<Body>,
-    full_path: PathBuf,
+    file_path: PathBuf,
     server_prefix: &str,
     base_dir: &str,
 ) -> String {
@@ -89,12 +93,12 @@ fn handle_propfind_resp(
         generate_content_xml(
             req,
             &mut multistatus_xml,
-            full_path,
+            file_path,
             base_dir,
             server_prefix.clone(),
         );
     } else {
-        for entry in fs::read_dir(&full_path).unwrap() {
+        for entry in fs::read_dir(&file_path).unwrap() {
             if let Ok(entry) = entry {
                 let entry_path = entry.path();
                 // println!("sub: {:?}, {}", entry_path, base_dir);
@@ -113,8 +117,61 @@ fn handle_propfind_resp(
     multistatus_xml
 }
 
-async fn handle_get_resp(full_path: &PathBuf) -> Response<Body> {
-    let file = match File::open(full_path) {
+async fn handle_get_resp(req: &Request<Body>, file_path: &PathBuf) -> Response<Body> {
+    let metadata = fs::metadata(file_path).unwrap();
+    let file_len = metadata.len();
+
+    let mut response = Response::new(Body::empty());
+    let range = get_range(req);
+    if range.len() > 0 {
+        let mut start = 0;
+        let end: u64;
+        let bounds = range.strip_prefix("bytes=").unwrap();
+        if bounds.contains("-") {
+            let parts = bounds.split('-').collect::<Vec<_>>();
+            start = parts[0].parse::<u64>().unwrap();
+            if parts.len() == 1 || parts[1] == "" {
+                end = file_len - 1;
+            } else {
+                end = parts[1].parse::<u64>().unwrap();
+            }
+        } else {
+            end = bounds.parse::<u64>().unwrap();
+        }
+
+        let mut file = File::open(file_path).unwrap();
+        file.seek(io::SeekFrom::Start(start)).unwrap();
+
+        let mut stream = Vec::with_capacity((end - start + 1) as usize);
+        file.take((end - start + 1) as u64)
+            .read_to_end(&mut stream)
+            .unwrap();
+
+        *response.status_mut() = StatusCode::PARTIAL_CONTENT;
+        *response.headers_mut() = {
+            let mut headers = http::HeaderMap::new();
+            headers.insert(
+                "Content-Range",
+                format!("bytes {}-{}/{}", start, end, file_len)
+                    .parse()
+                    .unwrap(),
+            );
+            headers.insert(
+                "Content-Length",
+                format!("{}", (end - start + 1)).parse().unwrap(),
+            );
+            headers
+        };
+        *response.body_mut() = Body::from(stream);
+    } else {
+        response = handle_get_all_resp(file_path).await;
+    }
+
+    response
+}
+
+async fn handle_get_all_resp(file_path: &PathBuf) -> Response<Body> {
+    let file = match File::open(file_path) {
         Ok(file) => file,
         Err(_) => {
             println!("not found");
@@ -124,7 +181,7 @@ async fn handle_get_resp(full_path: &PathBuf) -> Response<Body> {
                 .unwrap();
         }
     };
-    let mime_type = from_path(full_path).first_or_octet_stream();
+    let mime_type = from_path(file_path).first_or_octet_stream();
     // 读取文件内容
     let mut buffer = Vec::new();
     match file.take(usize::MAX as u64).read_to_end(&mut buffer) {
@@ -202,6 +259,11 @@ fn generate_content_xml(
         )
         .as_str(),
     );
+    let creationdate = get_creation_date(&entry_path.to_string_lossy());
+    if creationdate.len() > 0 {
+        multistatus_xml
+            .push_str(format!("<D:creationdate>{}</D:creationdate>\n", creationdate).as_str());
+    }
     multistatus_xml.push_str("<D:displayname/>\n");
     multistatus_xml.push_str("</D:prop>\n");
     multistatus_xml.push_str("<D:status>HTTP/1.1 200 OK</D:status>\n");
