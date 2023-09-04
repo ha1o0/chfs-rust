@@ -8,6 +8,7 @@ use std::fs::{self, File};
 use std::io::{self, Read, Seek};
 use std::path::{Path, PathBuf};
 
+use crate::config;
 use crate::util::{
     encode_uri, format_date_time, get_creation_date, get_depth, get_host, get_protocol, get_range,
     get_req_path,
@@ -19,7 +20,8 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
     let server_prefix = "/webdav";
     let req_path = get_req_path(&req);
     // 要挂载的目录
-    let base_dir = "/Users/halo/webdav/";
+    let cfg = config::get_config();
+    let base_dir = cfg.path.as_str();
     let mut path = req_path.to_string();
     path.replace_range(0..server_prefix.len(), "");
     // 被访问资源绝对路径
