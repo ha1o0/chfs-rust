@@ -1,17 +1,21 @@
 use chrono::Local;
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use http::HeaderValue;
+use hyper::header::CONTENT_ENCODING;
 use hyper::http;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use md5;
 use mime_guess::from_path;
 use std::convert::Infallible;
 use std::fs::{self, File};
-use std::io::{self, Read, Seek};
+use std::io::{self, Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
 use crate::config;
 use crate::util::{
-    encode_uri, format_date_time, get_creation_date, get_depth, get_host, get_protocol, get_range,
-    get_req_path,
+    encode_uri, format_date_time, get_creation_date, get_depth, get_encoding, get_host,
+    get_protocol, get_range, get_req_path,
 };
 
 pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infallible> {
@@ -78,6 +82,7 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
     } else {
         println!("{:?}", resp.headers());
     }
+
     Ok(resp)
 }
 
@@ -143,28 +148,42 @@ async fn handle_get_resp(req: &Request<Body>, file_path: &PathBuf) -> Response<B
 
         let mut file = File::open(file_path).unwrap();
         file.seek(io::SeekFrom::Start(start)).unwrap();
-
         let mut stream = Vec::with_capacity((end - start + 1) as usize);
         file.take((end - start + 1) as u64)
             .read_to_end(&mut stream)
             .unwrap();
-
+        println!("streamlength: {}", stream.len());
         *response.status_mut() = StatusCode::PARTIAL_CONTENT;
-        *response.headers_mut() = {
-            let mut headers = http::HeaderMap::new();
-            headers.insert(
-                "Content-Range",
-                format!("bytes {}-{}/{}", start, end, file_len)
-                    .parse()
-                    .unwrap(),
+        response.headers_mut().insert(
+            "Content-Range",
+            format!("bytes {}-{}/{}", start, end, file_len)
+                .parse()
+                .unwrap(),
+        );
+
+        let encoding = get_encoding(req);
+        println!("encoding: {}", encoding);
+        if encoding.contains("gzipa") {
+            response
+                .headers_mut()
+                .insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+
+            // 压缩响应体
+            let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::default());
+            gzip_encoder.write_all(&stream).unwrap();
+            let compressed_bytes = gzip_encoder.finish().unwrap();
+            response.headers_mut().insert(
+                "Content-Length",
+                format!("{}", compressed_bytes.len()).parse().unwrap(),
             );
-            headers.insert(
+            *response.body_mut() = Body::from(compressed_bytes);
+        } else {
+            response.headers_mut().insert(
                 "Content-Length",
                 format!("{}", (end - start + 1)).parse().unwrap(),
             );
-            headers
-        };
-        *response.body_mut() = Body::from(stream);
+            *response.body_mut() = Body::from(stream);
+        }
     } else {
         response = handle_get_all_resp(file_path).await;
     }

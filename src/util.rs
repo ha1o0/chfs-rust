@@ -4,6 +4,14 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use hyper::{Body, HeaderMap, Request};
 use urlencoding::{decode, encode};
 
+pub fn get_encoding(req: &Request<Body>) -> &str {
+    let mut result = "";
+    if let Some(value) = get_header_value(req, "accept-encoding") {
+        result = value;
+    }
+    result
+}
+
 pub fn get_range(req: &Request<Body>) -> &str {
     let mut result = "";
     if let Some(value) = get_header_value(req, "range") {
