@@ -14,8 +14,8 @@ use std::path::{Path, PathBuf};
 
 use crate::config;
 use crate::util::{
-    encode_uri, format_date_time, get_creation_date, get_depth, get_encoding, get_host,
-    get_protocol, get_range, get_req_path,
+    encode_uri, format_date_time, get_creation_date, get_depth, get_encoding, get_range,
+    get_req_path,
 };
 
 pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infallible> {
@@ -185,13 +185,13 @@ async fn handle_get_resp(req: &Request<Body>, file_path: &PathBuf) -> Response<B
             *response.body_mut() = Body::from(stream);
         }
     } else {
-        response = handle_get_all_resp(file_path).await;
+        response = handle_get_all_resp(req, file_path).await;
     }
 
     response
 }
 
-async fn handle_get_all_resp(file_path: &PathBuf) -> Response<Body> {
+async fn handle_get_all_resp(req: &Request<Body>, file_path: &PathBuf) -> Response<Body> {
     let file = match File::open(file_path) {
         Ok(file) => file,
         Err(_) => {
@@ -206,11 +206,29 @@ async fn handle_get_all_resp(file_path: &PathBuf) -> Response<Body> {
     // 读取文件内容
     let mut buffer = Vec::new();
     match file.take(usize::MAX as u64).read_to_end(&mut buffer) {
-        Ok(_) => Response::builder()
-            .status(StatusCode::OK)
-            .header("Content-Type", mime_type.as_ref())
-            .body(Body::from(buffer))
-            .unwrap(),
+        Ok(_) => {
+            let mut response = Response::new(Body::empty());
+            response.headers_mut().insert(
+                "Content-Type",
+                format!("{}", mime_type.as_ref()).parse().unwrap(),
+            );
+            let encoding = get_encoding(req);
+            println!("encoding: {}", encoding);
+            if encoding.contains("gzip") {
+                response
+                    .headers_mut()
+                    .insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+
+                // 压缩响应体
+                let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::default());
+                gzip_encoder.write_all(&buffer).unwrap();
+                let compressed_bytes = gzip_encoder.finish().unwrap();
+                *response.body_mut() = Body::from(compressed_bytes);
+            } else {
+                *response.body_mut() = Body::from(buffer);
+            }
+            response
+        }
         Err(_) => {
             println!("not found2");
             return Response::builder()
@@ -222,7 +240,7 @@ async fn handle_get_all_resp(file_path: &PathBuf) -> Response<Body> {
 }
 
 fn generate_content_xml(
-    req: &Request<Body>,
+    _req: &Request<Body>,
     multistatus_xml: &mut String,
     entry_path: PathBuf,
     base_dir: &str,
@@ -239,11 +257,7 @@ fn generate_content_xml(
     //     server_prefix_with_suffix, base_dir, entry_path
     // );
     multistatus_xml.push_str("<D:response>\n");
-    let protocol = get_protocol(&req);
-    let host = get_host(&req);
     let encode_relative_path = encode_uri(&relative_path);
-    let href = protocol.to_string() + "://" + &host + &encode_relative_path;
-    println!("protocol: {}", href);
     multistatus_xml
         .push_str(format!("<D:href>{}</D:href>\n", format!("{}", encode_relative_path)).as_str());
     multistatus_xml.push_str("<D:propstat>\n");
