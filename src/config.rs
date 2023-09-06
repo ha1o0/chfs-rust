@@ -4,6 +4,7 @@ use lazy_static::lazy_static;
 pub struct Config {
     pub port: u16,
     pub path: String,
+    pub log: String,
     // user: String,
     // pwd: String,
     // config: String,
@@ -17,6 +18,7 @@ fn load_config() -> Config {
     let mut config = Config {
         port: 8000,
         path: "/".to_string(),
+        log: "error".to_string(),
         // user: "".to_string(),
         // pwd: "".to_string(),
         // config: "".to_string(),

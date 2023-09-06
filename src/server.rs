@@ -41,12 +41,12 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
         //     .body(Body::empty())
         //     .unwrap());
     }
-    println!("req: {:?}", &req);
+    log::info!("req: {:?}", &req);
 
     // 实现各个 HTTP 方法
     let method = req.method();
     if method == Method::from_bytes(b"PROPFIND").unwrap() {
-        // println!("prop: {}, {:?}", path, file_path);
+        // log::info!("prop: {}, {:?}", path, file_path);
         let multistatus_xml = handle_propfind_resp(&req, file_path, server_prefix, base_dir);
         resp = Response::builder()
             .status(StatusCode::MULTI_STATUS)
@@ -79,13 +79,13 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
     }
 
     if method != Method::GET {
-        println!(
+        log::info!(
             "{}---resp: {:?}",
             Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             resp
         );
     } else {
-        println!("{:?}", resp.headers());
+        log::info!("{:?}", resp.headers());
     }
 
     Ok(resp)
@@ -113,7 +113,7 @@ fn handle_propfind_resp(
         for entry in fs::read_dir(&file_path).unwrap() {
             if let Ok(entry) = entry {
                 let entry_path = entry.path();
-                // println!("sub: {:?}, {}", entry_path, base_dir);
+                // log::info!("sub: {:?}, {}", entry_path, base_dir);
                 generate_content_xml(
                     req,
                     &mut multistatus_xml,
@@ -157,7 +157,7 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         file.take((end - start + 1) as u64)
             .read_to_end(&mut stream)
             .unwrap();
-        println!("streamlength: {}", stream.len());
+        log::info!("streamlength: {}", stream.len());
         *response.status_mut() = StatusCode::PARTIAL_CONTENT;
         response.headers_mut().insert(
             "Content-Range",
@@ -167,7 +167,7 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         );
 
         let encoding = get_encoding(req);
-        println!("encoding: {}", encoding);
+        log::info!("encoding: {}", encoding);
         if encoding.contains("gzipa") {
             response
                 .headers_mut()
@@ -203,7 +203,7 @@ async fn handle_get_all_resp(
     let file = match File::open(file_path) {
         Ok(file) => file,
         Err(_) => {
-            println!("not found");
+            log::info!("not found");
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(Full::new(Bytes::from("")))
@@ -221,7 +221,7 @@ async fn handle_get_all_resp(
                 format!("{}", mime_type.as_ref()).parse().unwrap(),
             );
             let encoding = get_encoding(req);
-            println!("encoding: {}", encoding);
+            log::info!("encoding: {}", encoding);
             if encoding.contains("gzip") {
                 response
                     .headers_mut()
@@ -238,7 +238,7 @@ async fn handle_get_all_resp(
             response
         }
         Err(_) => {
-            println!("not found2");
+            log::info!("not found2");
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(Full::new(Bytes::from("")))
@@ -260,7 +260,7 @@ fn generate_content_xml(
     }
     let mut relative_path = entry_path.to_string_lossy().to_owned().to_string();
     relative_path.replace_range(0..base_dir.len(), &server_prefix_with_suffix);
-    // println!(
+    // log::info!(
     //     "inner: {}---{}==={:?}",
     //     server_prefix_with_suffix, base_dir, entry_path
     // );

@@ -1,7 +1,8 @@
 use hyper::{server::conn::http1, service::service_fn};
 use hyper_util::rt::TokioIo;
+use log::LevelFilter;
 use rhfs::{config, server::handle_request};
-use std::net::SocketAddr;
+use std::{net::SocketAddr, str::FromStr};
 use tokio::net::TcpListener;
 
 #[tokio::main]
@@ -9,6 +10,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("Hello, world!");
     let cfg = config::get_config();
     println!("参数:{:?}", cfg);
+    env_logger::builder()
+        .filter_level(LevelFilter::from_str(&cfg.log).unwrap())
+        .init();
     let addr = SocketAddr::from(([0, 0, 0, 0], cfg.port));
 
     // We create a TcpListener and bind it to 127.0.0.1:3000
@@ -30,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .serve_connection(io, service_fn(handle_request))
                 .await
             {
-                println!("Error serving connection: {:?}", err);
+                log::error!("Error serving connection: {:?}", err);
             }
         });
     }
