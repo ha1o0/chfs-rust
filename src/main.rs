@@ -1,25 +1,37 @@
-use hyper::{
-    service::{make_service_fn, service_fn},
-    Server,
-};
-use rhfs::{config, server};
-use std::sync::Arc;
-use std::{convert::Infallible, net::SocketAddr};
+use hyper::{server::conn::http1, service::service_fn};
+use hyper_util::rt::TokioIo;
+use rhfs::{config, server::handle_request};
+use std::net::SocketAddr;
+use tokio::net::TcpListener;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("Hello, world!");
     let cfg = config::get_config();
     println!("参数:{:?}", cfg);
     let addr = SocketAddr::from(([0, 0, 0, 0], cfg.port));
-    let handle_request = Arc::new(server::handle_request);
-    let make_svc = make_service_fn(|_conn| {
-        let handle_request = Arc::clone(&handle_request);
-        async { Ok::<_, Infallible>(service_fn(move |req| handle_request(req))) }
-    });
-    let server = Server::bind(&addr).serve(make_svc);
-    println!("Listening on http://{}", addr);
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+
+    // We create a TcpListener and bind it to 127.0.0.1:3000
+    let listener = TcpListener::bind(addr).await?;
+
+    // We start a loop to continuously accept incoming connections
+    loop {
+        let (stream, _) = listener.accept().await?;
+
+        // Use an adapter to access something implementing `tokio::io` traits as if they implement
+        // `hyper::rt` IO traits.
+        let io = TokioIo::new(stream);
+
+        // Spawn a tokio task to serve multiple connections concurrently
+        tokio::task::spawn(async move {
+            // Finally, we bind the incoming connection to our `hello` service
+            if let Err(err) = http1::Builder::new()
+                // `service_fn` converts our function in a `Service`
+                .serve_connection(io, service_fn(handle_request))
+                .await
+            {
+                println!("Error serving connection: {:?}", err);
+            }
+        });
     }
 }
