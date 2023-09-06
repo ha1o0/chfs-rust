@@ -2,9 +2,11 @@ use chrono::Local;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use http::HeaderValue;
+use http_body_util::Full;
+use hyper::body::{Bytes, Incoming};
 use hyper::header::CONTENT_ENCODING;
 use hyper::http;
-use hyper::{Body, Method, Request, Response, StatusCode};
+use hyper::{Method, Request, Response, StatusCode};
 use md5;
 use mime_guess::from_path;
 use std::convert::Infallible;
@@ -18,8 +20,8 @@ use crate::util::{
     get_req_path,
 };
 
-pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infallible> {
-    let resp;
+pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
+    let mut resp;
     // webdav 访问路径前缀
     let server_prefix = "/webdav";
     let req_path = get_req_path(&req);
@@ -31,10 +33,13 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
     // 被访问资源绝对路径
     let file_path = Path::new(&base_dir).join(path.trim_start_matches('/'));
     if !file_path.exists() && !file_path.is_dir() || !req_path.starts_with("/webdav") {
-        return Ok(Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::empty())
-            .unwrap());
+        resp = Response::new(Full::new(Bytes::from("")));
+        *resp.status_mut() = StatusCode::NOT_FOUND;
+        return Ok(resp);
+        // return Ok(Response::builder()
+        //     .status(StatusCode::NOT_FOUND)
+        //     .body(Body::empty())
+        //     .unwrap());
     }
     println!("req: {:?}", &req);
 
@@ -46,10 +51,10 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
         resp = Response::builder()
             .status(StatusCode::MULTI_STATUS)
             .header("Content-Type", "application/xml; charset=utf-8")
-            .body(Body::from(multistatus_xml))
+            .body(Full::new(Bytes::from(multistatus_xml)))
             .unwrap();
     } else if method == Method::from_bytes(b"COPY").unwrap() {
-        resp = Response::new(Body::from("Hello, Webdav, COPY"));
+        resp = Response::new(Full::new(Bytes::from("Hello, Webdav, COPY")));
     } else {
         match req.method() {
             &Method::OPTIONS => {
@@ -58,17 +63,17 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
                     .status(StatusCode::OK)
                     .header("Allow", allow_methods)
                     .header("DAV", "1")
-                    .body(Body::empty())
+                    .body(Full::new(Bytes::from("")))
                     .unwrap();
             }
             &Method::GET => {
                 resp = handle_get_resp(&req, &file_path).await;
             }
             &Method::PUT => {
-                resp = Response::new(Body::from("Hello, Webdav, PUT"));
+                resp = Response::new(Full::new(Bytes::from("Hello, Webdav, PUT")));
             }
             _ => {
-                resp = Response::new(Body::from("Hello, Webdav"));
+                resp = Response::new(Full::new(Bytes::from("Hello, Webdav")));
             }
         }
     }
@@ -87,7 +92,7 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infall
 }
 
 fn handle_propfind_resp(
-    req: &Request<Body>,
+    req: &Request<Incoming>,
     file_path: PathBuf,
     server_prefix: &str,
     base_dir: &str,
@@ -124,11 +129,11 @@ fn handle_propfind_resp(
     multistatus_xml
 }
 
-async fn handle_get_resp(req: &Request<Body>, file_path: &PathBuf) -> Response<Body> {
+async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Response<Full<Bytes>> {
     let metadata = fs::metadata(file_path).unwrap();
     let file_len = metadata.len();
 
-    let mut response = Response::new(Body::empty());
+    let mut response = Response::new(Full::new(Bytes::from("")));
     let range = get_range(req);
     if range.len() > 0 {
         let mut start = 0;
@@ -176,13 +181,13 @@ async fn handle_get_resp(req: &Request<Body>, file_path: &PathBuf) -> Response<B
                 "Content-Length",
                 format!("{}", compressed_bytes.len()).parse().unwrap(),
             );
-            *response.body_mut() = Body::from(compressed_bytes);
+            *response.body_mut() = Full::new(Bytes::from(compressed_bytes));
         } else {
             response.headers_mut().insert(
                 "Content-Length",
                 format!("{}", (end - start + 1)).parse().unwrap(),
             );
-            *response.body_mut() = Body::from(stream);
+            *response.body_mut() = Full::new(Bytes::from(stream));
         }
     } else {
         response = handle_get_all_resp(req, file_path).await;
@@ -191,14 +196,17 @@ async fn handle_get_resp(req: &Request<Body>, file_path: &PathBuf) -> Response<B
     response
 }
 
-async fn handle_get_all_resp(req: &Request<Body>, file_path: &PathBuf) -> Response<Body> {
+async fn handle_get_all_resp(
+    req: &Request<Incoming>,
+    file_path: &PathBuf,
+) -> Response<Full<Bytes>> {
     let file = match File::open(file_path) {
         Ok(file) => file,
         Err(_) => {
             println!("not found");
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
-                .body(Body::empty())
+                .body(Full::new(Bytes::from("")))
                 .unwrap();
         }
     };
@@ -207,7 +215,7 @@ async fn handle_get_all_resp(req: &Request<Body>, file_path: &PathBuf) -> Respon
     let mut buffer = Vec::new();
     match file.take(usize::MAX as u64).read_to_end(&mut buffer) {
         Ok(_) => {
-            let mut response = Response::new(Body::empty());
+            let mut response = Response::new(Full::new(Bytes::from("")));
             response.headers_mut().insert(
                 "Content-Type",
                 format!("{}", mime_type.as_ref()).parse().unwrap(),
@@ -223,9 +231,9 @@ async fn handle_get_all_resp(req: &Request<Body>, file_path: &PathBuf) -> Respon
                 let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::default());
                 gzip_encoder.write_all(&buffer).unwrap();
                 let compressed_bytes = gzip_encoder.finish().unwrap();
-                *response.body_mut() = Body::from(compressed_bytes);
+                *response.body_mut() = Full::new(Bytes::from(compressed_bytes));
             } else {
-                *response.body_mut() = Body::from(buffer);
+                *response.body_mut() = Full::new(Bytes::from(buffer));
             }
             response
         }
@@ -233,14 +241,14 @@ async fn handle_get_all_resp(req: &Request<Body>, file_path: &PathBuf) -> Respon
             println!("not found2");
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::empty())
+                .body(Full::new(Bytes::from("")))
                 .unwrap();
         }
     }
 }
 
 fn generate_content_xml(
-    _req: &Request<Body>,
+    _req: &Request<Incoming>,
     multistatus_xml: &mut String,
     entry_path: PathBuf,
     base_dir: &str,

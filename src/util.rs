@@ -1,10 +1,10 @@
 use std::{fs, os::unix::prelude::MetadataExt};
 
 use chrono::{DateTime, NaiveDateTime, Utc};
-use hyper::{Body, HeaderMap, Request};
+use hyper::{body::Incoming, HeaderMap, Request};
 use urlencoding::{decode, encode};
 
-pub fn get_encoding(req: &Request<Body>) -> &str {
+pub fn get_encoding(req: &Request<Incoming>) -> &str {
     let mut result = "";
     if let Some(value) = get_header_value(req, "accept-encoding") {
         result = value;
@@ -12,7 +12,7 @@ pub fn get_encoding(req: &Request<Body>) -> &str {
     result
 }
 
-pub fn get_range(req: &Request<Body>) -> &str {
+pub fn get_range(req: &Request<Incoming>) -> &str {
     let mut result = "";
     if let Some(value) = get_header_value(req, "range") {
         result = value;
@@ -20,7 +20,7 @@ pub fn get_range(req: &Request<Body>) -> &str {
     result
 }
 
-pub fn get_depth(req: &Request<Body>) -> &str {
+pub fn get_depth(req: &Request<Incoming>) -> &str {
     let mut result = "0";
     if let Some(value) = get_header_value(req, "depth") {
         result = value;
@@ -28,7 +28,7 @@ pub fn get_depth(req: &Request<Body>) -> &str {
     result
 }
 
-pub fn get_protocol(req: &Request<Body>) -> &str {
+pub fn get_protocol(req: &Request<Incoming>) -> &str {
     let mut result = "http";
     if let Some(uri) = req.uri().scheme_str() {
         result = uri;
@@ -36,7 +36,7 @@ pub fn get_protocol(req: &Request<Body>) -> &str {
     result
 }
 
-pub fn get_host(req: &Request<Body>) -> &str {
+pub fn get_host(req: &Request<Incoming>) -> &str {
     let mut result = "";
     if let Some(value) = get_header_value(req, "host") {
         result = value;
@@ -44,7 +44,7 @@ pub fn get_host(req: &Request<Body>) -> &str {
     result
 }
 
-pub fn get_req_path(req: &Request<Body>) -> String {
+pub fn get_req_path(req: &Request<Incoming>) -> String {
     let path = req.uri().path();
     decode_uri(path)
     // encode_uri(path)
@@ -71,7 +71,7 @@ pub fn encode_uri(uri: &str) -> String {
 //     resp
 // }
 
-pub fn get_header_value<'a>(req: &'a Request<Body>, header_name: &'a str) -> Option<&'a str> {
+pub fn get_header_value<'a>(req: &'a Request<Incoming>, header_name: &'a str) -> Option<&'a str> {
     // 获取HTTP请求的头部
     let headers: &HeaderMap = req.headers();
     // 使用header_name获取特定的头部值
