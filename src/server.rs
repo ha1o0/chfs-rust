@@ -36,10 +36,6 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
         resp = Response::new(Full::new(Bytes::from("")));
         *resp.status_mut() = StatusCode::NOT_FOUND;
         return Ok(resp);
-        // return Ok(Response::builder()
-        //     .status(StatusCode::NOT_FOUND)
-        //     .body(Body::empty())
-        //     .unwrap());
     }
     log::info!("req: {:?}", &req);
 
@@ -222,19 +218,20 @@ async fn handle_get_all_resp(
             );
             let encoding = get_encoding(req);
             log::info!("encoding: {}", encoding);
-            if encoding.contains("gzip") {
-                response
-                    .headers_mut()
-                    .insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+            // if encoding.contains("gzip") {
+            //     response
+            //         .headers_mut()
+            //         .insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
 
-                // 压缩响应体
-                let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::default());
-                gzip_encoder.write_all(&buffer).unwrap();
-                let compressed_bytes = gzip_encoder.finish().unwrap();
-                *response.body_mut() = Full::new(Bytes::from(compressed_bytes));
-            } else {
-                *response.body_mut() = Full::new(Bytes::from(buffer));
-            }
+            //     // 压缩响应体
+            //     let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::default());
+            //     gzip_encoder.write_all(&buffer).unwrap();
+            //     let compressed_bytes = gzip_encoder.finish().unwrap();
+            //     *response.body_mut() = Full::new(Bytes::from(compressed_bytes));
+            // } else {
+            //     *response.body_mut() = Full::new(Bytes::from(buffer));
+            // }
+            *response.body_mut() = Full::new(Bytes::from(buffer));
             response
         }
         Err(_) => {
