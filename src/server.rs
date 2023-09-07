@@ -304,7 +304,13 @@ fn generate_content_xml(
         multistatus_xml
             .push_str(format!("<D:creationdate>{}</D:creationdate>\n", creationdate).as_str());
     }
-    multistatus_xml.push_str("<D:displayname/>\n");
+    multistatus_xml.push_str(
+        format!(
+            "<D:displayname>{}</D:displayname>\n",
+            entry_path.file_name().unwrap().to_string_lossy()
+        )
+        .as_str(),
+    );
     multistatus_xml.push_str("</D:prop>\n");
     multistatus_xml.push_str("<D:status>HTTP/1.1 200 OK</D:status>\n");
     multistatus_xml.push_str("</D:propstat>\n");
