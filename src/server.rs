@@ -4,7 +4,7 @@ use flate2::Compression;
 use http::HeaderValue;
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
-use hyper::header::CONTENT_ENCODING;
+use hyper::header::{CONNECTION, CONTENT_ENCODING};
 use hyper::http;
 use hyper::{Method, Request, Response, StatusCode};
 use md5;
@@ -84,6 +84,12 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
         log::info!("{:?}", resp.headers());
     }
 
+    // 如果客户端请求keep-alive,也在响应中带上
+    if req.headers().contains_key(CONNECTION) {
+        resp.headers_mut()
+            .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
+    }
+    log::info!("resp header: {:?}", resp.headers());
     Ok(resp)
 }
 
@@ -173,16 +179,8 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
             let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::default());
             gzip_encoder.write_all(&stream).unwrap();
             let compressed_bytes = gzip_encoder.finish().unwrap();
-            response.headers_mut().insert(
-                "Content-Length",
-                format!("{}", compressed_bytes.len()).parse().unwrap(),
-            );
             *response.body_mut() = Full::new(Bytes::from(compressed_bytes));
         } else {
-            response.headers_mut().insert(
-                "Content-Length",
-                format!("{}", (end - start + 1)).parse().unwrap(),
-            );
             *response.body_mut() = Full::new(Bytes::from(stream));
         }
     } else {
