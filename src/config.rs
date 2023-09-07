@@ -31,6 +31,7 @@ fn load_config() -> Config {
         match key {
             "port" => config.port = value.parse().unwrap(),
             "path" => config.path = value.into(),
+            "log" => config.log = value.into(),
             _ => {}
         }
     }
