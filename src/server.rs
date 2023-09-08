@@ -1,17 +1,15 @@
 use chrono::Local;
-use flate2::write::GzEncoder;
-use flate2::Compression;
 use http::HeaderValue;
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
-use hyper::header::{CONNECTION, CONTENT_ENCODING};
+use hyper::header::CONNECTION;
 use hyper::http;
 use hyper::{Method, Request, Response, StatusCode};
 use md5;
 use mime_guess::from_path;
 use std::convert::Infallible;
 use std::fs::{self, File};
-use std::io::{self, Read, Seek, Write};
+use std::io::{self, Read, Seek};
 use std::path::{Path, PathBuf};
 
 use crate::config;
@@ -156,7 +154,6 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         file.take((end - start + 1) as u64)
             .read_to_end(&mut stream)
             .unwrap();
-        log::info!("streamlength: {}", stream.len());
         *response.status_mut() = StatusCode::PARTIAL_CONTENT;
         response.headers_mut().insert(
             "Content-Range",
@@ -164,37 +161,19 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
                 .parse()
                 .unwrap(),
         );
-
-        let encoding = get_header(req, "accept-encoding", "");
-        log::info!("encoding: {}", encoding);
-        if encoding.contains("gzipa") {
-            response
-                .headers_mut()
-                .insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
-
-            // 压缩响应体
-            let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::default());
-            gzip_encoder.write_all(&stream).unwrap();
-            let compressed_bytes = gzip_encoder.finish().unwrap();
-            *response.body_mut() = Full::new(Bytes::from(compressed_bytes));
-        } else {
-            *response.body_mut() = Full::new(Bytes::from(stream));
-        }
+        *response.body_mut() = Full::new(Bytes::from(stream));
     } else {
-        response = handle_get_all_resp(req, file_path).await;
+        response = handle_get_all_resp(file_path).await;
     }
 
     response
 }
 
-async fn handle_get_all_resp(
-    req: &Request<Incoming>,
-    file_path: &PathBuf,
-) -> Response<Full<Bytes>> {
+async fn handle_get_all_resp(file_path: &PathBuf) -> Response<Full<Bytes>> {
     let file = match File::open(file_path) {
         Ok(file) => file,
         Err(_) => {
-            log::info!("not found");
+            log::error!("not found file");
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(Full::new(Bytes::from("")))
@@ -211,26 +190,11 @@ async fn handle_get_all_resp(
                 "Content-Type",
                 format!("{}", mime_type.as_ref()).parse().unwrap(),
             );
-            let encoding = get_header(req, "accept-encoding", "");
-            log::info!("encoding: {}", encoding);
-            // if encoding.contains("gzip") {
-            //     response
-            //         .headers_mut()
-            //         .insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
-
-            //     // 压缩响应体
-            //     let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::default());
-            //     gzip_encoder.write_all(&buffer).unwrap();
-            //     let compressed_bytes = gzip_encoder.finish().unwrap();
-            //     *response.body_mut() = Full::new(Bytes::from(compressed_bytes));
-            // } else {
-            //     *response.body_mut() = Full::new(Bytes::from(buffer));
-            // }
             *response.body_mut() = Full::new(Bytes::from(buffer));
             response
         }
         Err(_) => {
-            log::info!("not found2");
+            log::error!("not write buffer");
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(Full::new(Bytes::from("")))
