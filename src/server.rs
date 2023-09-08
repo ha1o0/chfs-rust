@@ -15,10 +15,7 @@ use std::io::{self, Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
 use crate::config;
-use crate::util::{
-    encode_uri, format_date_time, get_creation_date, get_depth, get_encoding, get_range,
-    get_req_path,
-};
+use crate::util::{encode_uri, format_date_time, get_creation_date, get_header, get_req_path};
 
 pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
     let mut resp;
@@ -99,7 +96,7 @@ fn handle_propfind_resp(
     server_prefix: &str,
     base_dir: &str,
 ) -> String {
-    let depth = get_depth(req);
+    let depth = get_header(req, "depth", "0");
     let mut multistatus_xml = String::new();
     multistatus_xml.push_str(r#"<?xml version="1.0" encoding="utf-8"?>"#);
     multistatus_xml.push_str(r#"<D:multistatus xmlns:D="DAV:">"#);
@@ -136,7 +133,7 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
     let file_len = metadata.len();
 
     let mut response = Response::new(Full::new(Bytes::from("")));
-    let range = get_range(req);
+    let range = get_header(req, "range", "");
     if range.len() > 0 {
         let mut start = 0;
         let end: u64;
@@ -168,7 +165,7 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
                 .unwrap(),
         );
 
-        let encoding = get_encoding(req);
+        let encoding = get_header(req, "accept-encoding", "");
         log::info!("encoding: {}", encoding);
         if encoding.contains("gzipa") {
             response
@@ -214,7 +211,7 @@ async fn handle_get_all_resp(
                 "Content-Type",
                 format!("{}", mime_type.as_ref()).parse().unwrap(),
             );
-            let encoding = get_encoding(req);
+            let encoding = get_header(req, "accept-encoding", "");
             log::info!("encoding: {}", encoding);
             // if encoding.contains("gzip") {
             //     response
