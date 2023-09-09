@@ -2,8 +2,8 @@ use hyper::{server::conn::http1, service::service_fn};
 use hyper_util::rt::TokioIo;
 use log::LevelFilter;
 use rhfs::{config, server::handle_request};
-use std::{net::SocketAddr, str::FromStr};
-use tokio::net::TcpListener;
+use std::{net::SocketAddr, str::FromStr, sync::Arc};
+use tokio::{net::TcpListener, sync::Semaphore};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -14,7 +14,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .filter_level(LevelFilter::from_str(&cfg.log).unwrap())
         .init();
     let addr = SocketAddr::from(([0, 0, 0, 0], cfg.port));
-    let keep_alive_timeout = 30;
+    let keep_alive_timeout = 60;
+
     // We create a TcpListener and bind it to 127.0.0.1:3000
     let listener = TcpListener::bind(addr).await?;
     // We start a loop to continuously accept incoming connections
@@ -24,9 +25,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Use an adapter to access something implementing `tokio::io` traits as if they implement
         // `hyper::rt` IO traits.
         let io = TokioIo::new(stream);
-
+        let semaphore = Arc::new(Semaphore::new(5));
         // Spawn a tokio task to serve multiple connections concurrently
         tokio::task::spawn(async move {
+            let binding = semaphore.clone();
+            let permit = binding.acquire().await;
             // Finally, we bind the incoming connection to our `hello` service
             if let Err(err) = http1::Builder::new()
                 .keep_alive(Some(keep_alive_timeout).is_some())
@@ -36,6 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             {
                 log::error!("Error serving connection: {:?}", err);
             }
+            drop(permit);
         });
     }
 }

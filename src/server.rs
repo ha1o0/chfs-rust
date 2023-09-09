@@ -127,12 +127,16 @@ fn handle_propfind_resp(
 }
 
 async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Response<Full<Bytes>> {
-    let metadata = fs::metadata(file_path).unwrap();
-    let file_len = metadata.len();
-
     let mut response = Response::new(Full::new(Bytes::from("")));
     let range = get_header(req, "range", "");
     if range.len() > 0 {
+        let mut file = File::open(file_path).unwrap();
+        let metadata = file.metadata().unwrap();
+        let file_len = metadata.len();
+        let mime_type = from_path(file_path).first_or_octet_stream();
+        response
+            .headers_mut()
+            .insert("Content-Type", format!("{}", mime_type).parse().unwrap());
         let mut start = 0;
         let end: u64;
         let bounds = range.strip_prefix("bytes=").unwrap();
@@ -147,8 +151,6 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         } else {
             end = bounds.parse::<u64>().unwrap();
         }
-
-        let mut file = File::open(file_path).unwrap();
         file.seek(io::SeekFrom::Start(start)).unwrap();
         let mut stream = Vec::with_capacity((end - start + 1) as usize);
         file.take((end - start + 1) as u64)
