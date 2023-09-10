@@ -18,18 +18,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // We create a TcpListener and bind it to 127.0.0.1:3000
     let listener = TcpListener::bind(addr).await?;
+    let concurrent_connections = 10;
+    let semaphore = Arc::new(Semaphore::new(concurrent_connections));
     // We start a loop to continuously accept incoming connections
     loop {
         let (stream, _) = listener.accept().await?;
+        // Clone semaphore for each connection
+        let semaphore_clone = semaphore.clone();
 
-        // Use an adapter to access something implementing `tokio::io` traits as if they implement
-        // `hyper::rt` IO traits.
-        let io = TokioIo::new(stream);
-        let semaphore = Arc::new(Semaphore::new(5));
         // Spawn a tokio task to serve multiple connections concurrently
         tokio::task::spawn(async move {
-            let binding = semaphore.clone();
-            let permit = binding.acquire().await;
+            // Acquire a permit from the semaphore
+            let permit = semaphore_clone.acquire().await;
+            // Use an adapter to access something implementing `tokio::io` traits as if they implement
+            // `hyper::rt` IO traits.
+            let io = TokioIo::new(stream);
             // Finally, we bind the incoming connection to our `hello` service
             if let Err(err) = http1::Builder::new()
                 .keep_alive(Some(keep_alive_timeout).is_some())
