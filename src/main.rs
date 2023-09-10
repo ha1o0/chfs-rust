@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // We create a TcpListener and bind it to 127.0.0.1:3000
     let listener = TcpListener::bind(addr).await?;
-    let concurrent_connections = 10;
+    let concurrent_connections = 3;
     let semaphore = Arc::new(Semaphore::new(concurrent_connections));
     // We start a loop to continuously accept incoming connections
     loop {
@@ -30,6 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         tokio::task::spawn(async move {
             // Acquire a permit from the semaphore
             let permit = semaphore_clone.acquire().await;
+            log::info!("permit: {:?}", permit);
             // Use an adapter to access something implementing `tokio::io` traits as if they implement
             // `hyper::rt` IO traits.
             let io = TokioIo::new(stream);
@@ -43,6 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 log::error!("Error serving connection: {:?}", err);
             }
             drop(permit);
+            log::info!("drop");
         });
     }
 }
