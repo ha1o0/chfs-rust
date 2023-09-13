@@ -12,6 +12,7 @@ use std::fs::{self, File};
 use std::io::{self, Read, Seek};
 use std::path::{Path, PathBuf};
 
+use crate::cache::{exist_cache, set_cache};
 use crate::config;
 use crate::util::{encode_uri, format_date_time, get_creation_date, get_header, get_req_path};
 
@@ -140,11 +141,18 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         let mut start = 0;
         let end: u64;
         let bounds = range.strip_prefix("bytes=").unwrap();
+        let file_path_str = &file_path.to_string_lossy();
         if bounds.contains("-") {
             let parts = bounds.split('-').collect::<Vec<_>>();
+            let max_chunk_size = 5 * 1024 * 1024;
             start = parts[0].parse::<u64>().unwrap();
             if parts.len() == 1 || parts[1] == "" {
-                end = file_len - 1;
+                if file_len - start > max_chunk_size && start == 0 && !exist_cache(file_path_str) {
+                    end = start + max_chunk_size;
+                    set_cache(file_path_str, "");
+                } else {
+                    end = file_len - 1;
+                }
             } else {
                 end = parts[1].parse::<u64>().unwrap();
             }
