@@ -1,3 +1,5 @@
+use crate::config;
+use crate::util::{encode_uri, format_date_time, get_creation_date, get_header, get_req_path};
 use chrono::Local;
 use http::HeaderValue;
 use http_body_util::Full;
@@ -11,10 +13,6 @@ use std::convert::Infallible;
 use std::fs::{self, File};
 use std::io::{self, Read, Seek};
 use std::path::{Path, PathBuf};
-
-use crate::cache::{exist_cache, set_cache};
-use crate::config;
-use crate::util::{encode_uri, format_date_time, get_creation_date, get_header, get_req_path};
 
 pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
     let mut resp;
@@ -141,37 +139,35 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         let mut start = 0;
         let end: u64;
         let bounds = range.strip_prefix("bytes=").unwrap();
-        let file_path_str = &file_path.to_string_lossy();
         let max_chunk_size = 20 * 1024 * 1024;
         if bounds.contains("-") {
             let parts = bounds.split('-').collect::<Vec<_>>();
             start = parts[0].parse::<u64>().unwrap();
             if parts.len() == 1 || parts[1] == "" {
-                if file_len - start > max_chunk_size && start == 0 {
-                    end = start + max_chunk_size;
-                    // set_cache(file_path_str, "");
-                } else {
-                    end = file_len - 1;
-                }
+                end = file_len - 1;
             } else {
                 end = parts[1].parse::<u64>().unwrap();
             }
         } else {
             end = bounds.parse::<u64>().unwrap();
         }
-        file.seek(io::SeekFrom::Start(start)).unwrap();
-        let mut stream = Vec::with_capacity((end - start + 1) as usize);
-        file.take((end - start + 1) as u64)
-            .read_to_end(&mut stream)
-            .unwrap();
-        *response.status_mut() = StatusCode::PARTIAL_CONTENT;
-        response.headers_mut().insert(
-            "Content-Range",
-            format!("bytes {}-{}/{}", start, end, file_len)
-                .parse()
-                .unwrap(),
-        );
-        *response.body_mut() = Full::new(Bytes::from(stream));
+        if (end - start) > max_chunk_size {
+            *response.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
+        } else {
+            file.seek(io::SeekFrom::Start(start)).unwrap();
+            let mut stream = Vec::with_capacity((end - start + 1) as usize);
+            file.take((end - start + 1) as u64)
+                .read_to_end(&mut stream)
+                .unwrap();
+            *response.status_mut() = StatusCode::PARTIAL_CONTENT;
+            response.headers_mut().insert(
+                "Content-Range",
+                format!("bytes {}-{}/{}", start, end, file_len)
+                    .parse()
+                    .unwrap(),
+            );
+            *response.body_mut() = Full::new(Bytes::from(stream));
+        }
     } else {
         response = handle_get_all_resp(file_path).await;
     }
