@@ -1,4 +1,4 @@
-use chrono::Local;
+use chrono::{Local, Utc};
 use http::HeaderValue;
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
@@ -131,7 +131,11 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
     let mut response = Response::new(Full::new(Bytes::from("")));
     let range = get_header(req, "range", "");
     if range.len() > 0 {
+        let start_time = Utc::now();
         let mut file = File::open(file_path).unwrap();
+        let end_time = Utc::now();
+        let sub_time = end_time - start_time;
+        log::error!("sub time: {}", sub_time);
         let metadata = file.metadata().unwrap();
         let file_len = metadata.len();
         let mime_type = from_path(file_path).first_or_octet_stream();

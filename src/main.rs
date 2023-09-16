@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .filter_level(LevelFilter::from_str(&cfg.log).unwrap())
         .init();
     let addr = SocketAddr::from(([0, 0, 0, 0], cfg.port));
-    let keep_alive_timeout = 60;
+    let keep_alive_timeout = 65;
 
     // We create a TcpListener and bind it to 127.0.0.1:3000
     let listener = TcpListener::bind(addr).await?;
