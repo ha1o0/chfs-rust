@@ -1,4 +1,4 @@
-use chrono::{Local, Utc};
+use chrono::Local;
 use http::HeaderValue;
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
@@ -105,7 +105,7 @@ fn handle_propfind_resp(
             &mut multistatus_xml,
             file_path,
             base_dir,
-            server_prefix.clone(),
+            server_prefix,
         );
     } else {
         for entry in fs::read_dir(&file_path).unwrap() {
@@ -117,7 +117,7 @@ fn handle_propfind_resp(
                     &mut multistatus_xml,
                     entry_path,
                     base_dir,
-                    server_prefix.clone(),
+                    server_prefix,
                 );
             }
         }
@@ -131,11 +131,7 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
     let mut response = Response::new(Full::new(Bytes::from("")));
     let range = get_header(req, "range", "");
     if range.len() > 0 {
-        let start_time = Utc::now();
         let mut file = File::open(file_path).unwrap();
-        let end_time = Utc::now();
-        let sub_time = end_time - start_time;
-        log::error!("sub time: {}", sub_time);
         let metadata = file.metadata().unwrap();
         let file_len = metadata.len();
         let mime_type = from_path(file_path).first_or_octet_stream();
@@ -146,14 +142,14 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         let end: u64;
         let bounds = range.strip_prefix("bytes=").unwrap();
         let file_path_str = &file_path.to_string_lossy();
+        let max_chunk_size = 20 * 1024 * 1024;
         if bounds.contains("-") {
             let parts = bounds.split('-').collect::<Vec<_>>();
-            let max_chunk_size = 5 * 1024 * 1024;
             start = parts[0].parse::<u64>().unwrap();
             if parts.len() == 1 || parts[1] == "" {
-                if file_len - start > max_chunk_size && start == 0 && !exist_cache(file_path_str) {
+                if file_len - start > max_chunk_size && start == 0 {
                     end = start + max_chunk_size;
-                    set_cache(file_path_str, "");
+                    // set_cache(file_path_str, "");
                 } else {
                     end = file_len - 1;
                 }

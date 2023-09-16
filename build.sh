@@ -7,7 +7,7 @@ TARGETS=(
   # x86_64-unknown-linux-gnu
   aarch64-unknown-linux-gnu
   # armv7-unknown-linux-gnueabihf
-  x86_64-apple-darwin
+  # x86_64-apple-darwin
   # aarch64-apple-darwin
 )
 
