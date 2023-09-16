@@ -139,7 +139,7 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         let mut start = 0;
         let end: u64;
         let bounds = range.strip_prefix("bytes=").unwrap();
-        let max_chunk_size = 10 * 1024 * 1024;
+        let max_chunk_size = (file_len / 1024) * 30;
         if bounds.contains("-") {
             let parts = bounds.split('-').collect::<Vec<_>>();
             start = parts[0].parse::<u64>().unwrap();
