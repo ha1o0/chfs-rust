@@ -5,8 +5,8 @@ pub struct Config {
     pub port: u16,
     pub path: String,
     pub log: String,
-    // user: String,
-    // pwd: String,
+    pub user: String,
+    pub pwd: String,
     // config: String,
 }
 
@@ -19,8 +19,8 @@ fn load_config() -> Config {
         port: 8000,
         path: "/".to_string(),
         log: "error".to_string(),
-        // user: "".to_string(),
-        // pwd: "".to_string(),
+        user: "".to_string(),
+        pwd: "".to_string(),
         // config: "".to_string(),
     };
 
@@ -32,6 +32,8 @@ fn load_config() -> Config {
             "port" => config.port = value.parse().unwrap(),
             "path" => config.path = value.into(),
             "log" => config.log = value.into(),
+            "user" => config.user = value.into(),
+            "pwd" => config.pwd = value.into(),
             _ => {}
         }
     }

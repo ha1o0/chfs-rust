@@ -1,10 +1,11 @@
+use crate::cache::exist;
 use crate::config;
 use crate::util::{encode_uri, format_date_time, get_creation_date, get_header, get_req_path};
 use chrono::Local;
 use http::HeaderValue;
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
-use hyper::header::CONNECTION;
+use hyper::header::{CONNECTION, WWW_AUTHENTICATE};
 use hyper::http;
 use hyper::{Method, Request, Response, StatusCode};
 use md5;
@@ -15,7 +16,19 @@ use std::io::{self, Read, Seek};
 use std::path::{Path, PathBuf};
 
 pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
-    let mut resp;
+    log::info!("req: {:?}", &req);
+    let method = req.method();
+    let mut resp = Response::new(Full::new(Bytes::from("")));
+    let auth_header = get_header(&req, "Authorization", "");
+    // Basic Authentication
+    if method != Method::OPTIONS && method != Method::HEAD && !exist(auth_header) {
+        *resp.status_mut() = StatusCode::UNAUTHORIZED;
+        resp.headers_mut().insert(
+            WWW_AUTHENTICATE,
+            HeaderValue::from_static("Basic realm='Restricted'"),
+        );
+        return Ok(resp);
+    }
     // webdav 访问路径前缀
     let server_prefix = "/webdav";
     let req_path = get_req_path(&req);
@@ -27,14 +40,12 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
     // 被访问资源绝对路径
     let file_path = Path::new(&base_dir).join(path.trim_start_matches('/'));
     if !file_path.exists() && !file_path.is_dir() || !req_path.starts_with("/webdav") {
-        resp = Response::new(Full::new(Bytes::from("")));
         *resp.status_mut() = StatusCode::NOT_FOUND;
         return Ok(resp);
     }
-    log::info!("req: {:?}", &req);
 
     // 实现各个 HTTP 方法
-    let method = req.method();
+
     if method == Method::from_bytes(b"PROPFIND").unwrap() {
         // log::info!("prop: {}, {:?}", path, file_path);
         let multistatus_xml = handle_propfind_resp(&req, file_path, server_prefix, base_dir);
@@ -46,7 +57,7 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
     } else if method == Method::from_bytes(b"COPY").unwrap() {
         resp = Response::new(Full::new(Bytes::from("Hello, Webdav, COPY")));
     } else {
-        match req.method() {
+        match method {
             &Method::OPTIONS => {
                 let allow_methods = "OPTIONS, GET, HEAD, POST, PUT, DELETE, PROPFIND";
                 resp = Response::builder()
