@@ -1,7 +1,8 @@
+use base64::{engine::general_purpose, Engine};
 use hyper::{server::conn::http1, service::service_fn};
 use hyper_util::rt::TokioIo;
 use log::LevelFilter;
-use rhfs::{config, server::handle_request};
+use rhfs::{cache::set, config, server::handle_request};
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
     str::FromStr,
@@ -16,6 +17,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env_logger::builder()
         .filter_level(LevelFilter::from_str(&cfg.log).unwrap())
         .init();
+    let b64 = general_purpose::STANDARD.encode(cfg.user.to_string() + ":" + &cfg.pwd.to_string());
+    set(&("Basic ".to_string() + &b64.to_string()), &cfg.user);
     let addr_v6 = SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, cfg.port, 0, 0);
     let listener_v6 = TcpListener::bind(addr_v6).await?;
 
