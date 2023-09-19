@@ -55,7 +55,7 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
             .body(Full::new(Bytes::from(multistatus_xml)))
             .unwrap();
     } else if method == Method::from_bytes(b"COPY").unwrap() {
-        resp = Response::new(Full::new(Bytes::from("Hello, Webdav, COPY")));
+        resp = handle_copy_resp(&req).await;
     } else {
         match method {
             &Method::OPTIONS => {
@@ -162,7 +162,7 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         } else {
             end = bounds.parse::<u64>().unwrap();
         }
-        if (end - start) > max_chunk_size {
+        if (end - start) > max_chunk_size || end <= start || end > file_len {
             *response.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
         } else {
             file.seek(io::SeekFrom::Start(start)).unwrap();
@@ -218,6 +218,16 @@ async fn handle_get_all_resp(file_path: &PathBuf) -> Response<Full<Bytes>> {
                 .unwrap();
         }
     }
+}
+
+async fn handle_copy_resp(req: &Request<Incoming>) -> Response<Full<Bytes>> {
+    let mut response = Response::new(Full::new(Bytes::from("")));
+    let src = get_header(&req, "", "");
+    let des = get_header(&req, "Destination", "");
+    if src.len() == 0 || des.len() == 0 {
+        return response;
+    }
+    response
 }
 
 fn generate_content_xml(
