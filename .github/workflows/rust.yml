@@ -22,17 +22,17 @@ jobs:
             os: ubuntu-latest
             rust: nightly
             target: x86_64-unknown-linux-musl
-            archive-name: todo-linux
+            archive-name: rhfs-linux
           - build: macos
             os: macos-latest
             rust: nightly
             target: x86_64-apple-darwin
-            archive-name: todo-macos
+            archive-name: rhfs-macos
           - build: windows
             os: windows-latest
             rust: nightly-x86_64-msvc
             target: x86_64-pc-windows-msvc
-            archive-name: todo-windows
+            archive-name: rhfs-windows
       fail-fast: false
 
     steps:
@@ -54,7 +54,7 @@ jobs:
 
       - name: Strip binary (linux and macos)
         if: matrix.build == 'linux' || matrix.build == 'macos'
-        run: strip "target/${{ matrix.target }}/release/todo"
+        run: strip "target/${{ matrix.target }}/release/rhfs"
 
       - name: Build archive
         shell: bash
@@ -63,9 +63,9 @@ jobs:
           mkdir ${{ matrix.archive-name }}
           cd ${{ matrix.archive-name }}
           if [ "${{ matrix.build }}" = "windows" ]; then
-            cp "../target/${{ matrix.target }}/release/todo.exe" "./"
+            cp "../target/${{ matrix.target }}/release/rhfs.exe" "./"
           else
-            cp "../target/${{ matrix.target }}/release/todo" "./${{ matrix.archive-name }}"
+            cp "../target/${{ matrix.target }}/release/rhfs" "./${{ matrix.archive-name }}"
           fi
 
       - name: Upload archive
