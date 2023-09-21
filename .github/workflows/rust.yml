@@ -1,52 +1,95 @@
-name: Cross Compile  
+name: build
 
-on: 
-  workflow_dispatch:
+permissions:
+  contents: write
+
+# on:
+#   workflow_dispatch: {}
+on:
+  push:
+    tags:
+      - 'v*.*.*'
 
 jobs:
-
   build:
-
-    runs-on: ubuntu-latest
-
+    name: build
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        target:
-          - x86_64-apple-darwin
-          - x86_64-unknown-linux-gnu  
-          - x86_64-pc-windows-msvc
-          - aarch64-apple-darwin
-          - aarch64-unknown-linux-gnu
+        build: [linux, macos, windows]
+        include:
+          - build: linux
+            os: ubuntu-latest
+            rust: nightly
+            target: x86_64-unknown-linux-musl
+            archive-name: todo-linux
+          - build: macos
+            os: macos-latest
+            rust: nightly
+            target: x86_64-apple-darwin
+            archive-name: todo-macos
+          - build: windows
+            os: windows-latest
+            rust: nightly-x86_64-msvc
+            target: x86_64-pc-windows-msvc
+            archive-name: todo-windows
+      fail-fast: false
 
     steps:
-    - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          profile: minimal
+          override: true
+          target: ${{ matrix.target }}
 
-    - name: Install dependencies
-      run: |
-        rustup target add ${{ matrix.target }} 
-        
-    - name: Build
-      run: cargo build --target ${{ matrix.target }}
-      
-  post-build:
-    
-    needs: build
-    
-    runs-on: ubuntu-latest
+      - name: Build binary
+        run: cargo build --verbose --release --target ${{ matrix.target }}
+        env:
+          RUST_BACKTRACE: 1
 
-    steps:
-    
-    - name: Package artifacts
-      run: |
-        mkdir -p build/${{ matrix.target }}
-        cp target/${{ matrix.target }}/release/mybin build/${{ matrix.target }}
-        
-    - uses: actions/upload-artifact@v2
-      with:
-       name: artifacts
-       path: build
+      - name: Strip binary (linux and macos)
+        if: matrix.build == 'linux' || matrix.build == 'macos'
+        run: strip "target/${{ matrix.target }}/release/todo"
+
+      - name: Build archive
+        shell: bash
+        run: |
+          mkdir archive
+          mkdir ${{ matrix.archive-name }}
+          cd ${{ matrix.archive-name }}
+          if [ "${{ matrix.build }}" = "windows" ]; then
+            cp "../target/${{ matrix.target }}/release/todo.exe" "./"
+          else
+            cp "../target/${{ matrix.target }}/release/todo" "./${{ matrix.archive-name }}"
+          fi
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v2
+        with:
+          path: ${{ matrix.archive-name }}/*
+
+      - name: Show files
+        run: |
+          ls ${{ github.workspace }}/${{ matrix.archive-name }}
+
+      - name: Download archive
+        uses: actions/download-artifact@v2
+        with:
+          path: archive/
+
+      - name: Show Download files
+        run: |
+          ls archive/artifact/
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: false
+          files: archive/artifact/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
