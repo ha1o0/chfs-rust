@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        build: [linux, linux-arm64, macos, macos-arm, windows]
+        build: [linux, linux-arm64, macos, macos-arm64, windows]
         include:
           - build: linux
             os: ubuntu-latest
