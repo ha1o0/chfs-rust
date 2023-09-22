@@ -58,22 +58,22 @@ pub fn format_date_time(dt: std::time::SystemTime) -> String {
         .to_string()
 }
 
-pub fn get_creation_date(file_path: &str) -> String {
-    let os = std::env::consts::OS;
-    if os != "linux" && os != "macos" {
-        return "".to_string();
-    }
-    if let Ok(metadata) = fs::metadata(file_path) {
-        let created = metadata.ctime();
+// pub fn get_creation_date(file_path: &str) -> String {
+//     let os = std::env::consts::OS;
+//     if os != "linux" && os != "macos" {
+//         return "".to_string();
+//     }
+//     if let Ok(metadata) = fs::metadata(file_path) {
+//         let created = metadata.ctime();
 
-        // 将Unix时间戳格式化为RFC3339格式
-        let formatted_date = {
-            let secs = created as i64;
-            let datetime = NaiveDateTime::from_timestamp_opt(secs, 0);
-            datetime.expect("invalid or out-of-range datetime")
-        };
-        return formatted_date.format("%Y-%m-%dT%H:%M:%SZ").to_string();
-    }
+//         // 将Unix时间戳格式化为RFC3339格式
+//         let formatted_date = {
+//             let secs = created as i64;
+//             let datetime = NaiveDateTime::from_timestamp_opt(secs, 0);
+//             datetime.expect("invalid or out-of-range datetime")
+//         };
+//         return formatted_date.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+//     }
 
-    "".to_string()
-}
+//     "".to_string()
+// }

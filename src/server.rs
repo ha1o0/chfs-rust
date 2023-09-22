@@ -1,6 +1,6 @@
 use crate::cache::exist;
 use crate::config;
-use crate::util::{encode_uri, format_date_time, get_creation_date, get_header, get_req_path};
+use crate::util::{encode_uri, format_date_time, get_header, get_req_path};
 use chrono::Local;
 use http::HeaderValue;
 use http_body_util::Full;
@@ -275,11 +275,11 @@ fn generate_content_xml(
         )
         .as_str(),
     );
-    let creationdate = get_creation_date(&entry_path.to_string_lossy());
-    if creationdate.len() > 0 {
-        multistatus_xml
-            .push_str(format!("<D:creationdate>{}</D:creationdate>\n", creationdate).as_str());
-    }
+    // let creationdate = get_creation_date(&entry_path.to_string_lossy());
+    // if creationdate.len() > 0 {
+    //     multistatus_xml
+    //         .push_str(format!("<D:creationdate>{}</D:creationdate>\n", creationdate).as_str());
+    // }
     multistatus_xml.push_str(
         format!(
             "<D:displayname>{}</D:displayname>\n",
