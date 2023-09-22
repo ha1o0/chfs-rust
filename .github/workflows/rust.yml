@@ -23,6 +23,11 @@ jobs:
             rust: nightly
             target: x86_64-unknown-linux-musl
             archive-name: rhfs-linux
+          - build: linux-arm64
+            os: ubuntu-latest
+            rust: nightly
+            target: aarch64-unknown-linux-gnu
+            archive-name: rhfs-linux-arm64
           - build: macos
             os: macos-latest
             rust: nightly
