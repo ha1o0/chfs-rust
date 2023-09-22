@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        build: [linux, macos, windows]
+        build: [linux, linux-arm64, macos, macos-arm, windows]
         include:
           - build: linux
             os: ubuntu-latest
@@ -33,6 +33,11 @@ jobs:
             rust: nightly
             target: x86_64-apple-darwin
             archive-name: rhfs-macos
+          - build: macos-arm64
+            os: macos-latest
+            rust: nightly
+            target: aarch64-apple-darwin
+            archive-name: rhfs-macos-arm64
           - build: windows
             os: windows-latest
             rust: nightly-x86_64-msvc
