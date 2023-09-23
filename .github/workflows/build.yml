@@ -16,18 +16,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        build: [linux, linux-arm64, macos, macos-arm64, windows]
+        build: [linux, macos, macos-arm64, windows]
         include:
           - build: linux
             os: ubuntu-latest
             rust: nightly
             target: x86_64-unknown-linux-musl
             archive-name: rhfs-linux
-          - build: linux-arm64
-            os: ubuntu-latest
-            rust: nightly
-            target: aarch64-unknown-linux-gnu
-            archive-name: rhfs-linux-arm64
           - build: macos
             os: macos-latest
             rust: nightly
@@ -73,7 +68,7 @@ jobs:
           mkdir ${{ matrix.archive-name }}
           cd ${{ matrix.archive-name }}
           if [ "${{ matrix.build }}" = "windows" ]; then
-            cp "../target/${{ matrix.target }}/release/rhfs.exe" "./"
+            cp "../target/${{ matrix.target }}/release/rhfs.exe" "./rhfs-windows.exe"
           else
             cp "../target/${{ matrix.target }}/release/rhfs" "./${{ matrix.archive-name }}"
           fi
