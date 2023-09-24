@@ -16,13 +16,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        build: [linux, macos, macos-arm64, windows]
+        build: [linux, linux-arm64, macos, macos-arm64, windows]
         include:
           - build: linux
             os: ubuntu-latest
             rust: nightly
             target: x86_64-unknown-linux-musl
             archive-name: rhfs-linux
+          - build: linux-arm64
+            os: self-hosted
+            rust: 1.72.1
+            target: aarch64-unknown-linux-gnu
+            archive-name: rhfs-linux-arm64
           - build: macos
             os: macos-latest
             rust: nightly
@@ -42,9 +47,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Install Rust
+        if: matrix.build != 'linux-arm64'
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
@@ -58,7 +64,7 @@ jobs:
           RUST_BACKTRACE: 1
 
       - name: Strip binary (linux and macos)
-        if: matrix.build == 'linux' || matrix.build == 'macos'
+        if: matrix.build != 'windows'
         run: strip "target/${{ matrix.target }}/release/rhfs"
 
       - name: Build archive
