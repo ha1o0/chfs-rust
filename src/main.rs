@@ -17,8 +17,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env_logger::builder()
         .filter_level(LevelFilter::from_str(&cfg.log).unwrap())
         .init();
-    let b64 = general_purpose::STANDARD.encode(cfg.user.to_string() + ":" + &cfg.pwd.to_string());
-    set(&("Basic ".to_string() + &b64.to_string()), &cfg.user);
+    let user = cfg.user.to_string();
+    let pwd = cfg.pwd.to_string();
+    if user.len() > 0 && pwd.len() > 0 {
+        let b64 = general_purpose::STANDARD.encode(user + ":" + &pwd);
+        set(&("Basic ".to_string() + &b64.to_string()), &cfg.user);
+        set("need_login", "1");
+    }
     let addr_v6 = SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, cfg.port, 0, 0);
     let listener_v6 = TcpListener::bind(addr_v6).await?;
 

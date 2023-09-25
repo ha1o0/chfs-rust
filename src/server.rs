@@ -21,7 +21,11 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
     let mut resp = Response::new(Full::new(Bytes::from("")));
     let auth_header = get_header(&req, "Authorization", "");
     // Basic Authentication
-    if method != Method::OPTIONS && method != Method::HEAD && !exist(auth_header) {
+    if method != Method::OPTIONS
+        && method != Method::HEAD
+        && exist("need_login")
+        && !exist(auth_header)
+    {
         *resp.status_mut() = StatusCode::UNAUTHORIZED;
         resp.headers_mut().insert(
             WWW_AUTHENTICATE,
@@ -151,6 +155,7 @@ async fn handle_get_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         let end: u64;
         let bounds = range.strip_prefix("bytes=").unwrap();
         let max_chunk_size = (file_len / 1024) * 50;
+        // log::info!("file_len: {}, max chunk size: {}", file_len, max_chunk_size);
         if bounds.contains("-") {
             let parts = bounds.split('-').collect::<Vec<_>>();
             start = parts[0].parse::<u64>().unwrap();
