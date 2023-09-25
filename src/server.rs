@@ -288,7 +288,7 @@ fn generate_content_xml(
     multistatus_xml.push_str(
         format!(
             "<D:displayname>{}</D:displayname>\n",
-            entry_path.file_name().unwrap().to_string_lossy()
+            encode_uri(entry_path.file_name().unwrap().to_str().unwrap())
         )
         .as_str(),
     );
