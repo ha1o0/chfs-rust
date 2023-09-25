@@ -58,13 +58,22 @@ jobs:
           override: true
           target: ${{ matrix.target }}
 
+      - name: Build binary for linux arm64
+        if: matrix.build == 'linux-arm64'
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --release --target ${{ matrix.target }}
+
       - name: Build binary
+        if: matrix.build != 'linux-arm64'
         run: cargo build --verbose --release --target ${{ matrix.target }}
         env:
           RUST_BACKTRACE: 1
 
       - name: Strip binary (linux and macos)
-        if: matrix.build != 'windows'
+        if: matrix.build != 'windows' && matrix.build != 'linux-arm64'
         run: strip "target/${{ matrix.target }}/release/rhfs"
 
       - name: Build archive
