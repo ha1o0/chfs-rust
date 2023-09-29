@@ -40,23 +40,32 @@ pub async fn handle_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         } else {
             end = bounds.parse::<u64>().unwrap();
         }
-        if (end - start) > max_chunk_size {
-            *response.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
-        } else {
-            file.seek(io::SeekFrom::Start(start)).unwrap();
-            let mut stream = Vec::with_capacity((end - start + 1) as usize);
-            file.take((end - start + 1) as u64)
-                .read_to_end(&mut stream)
-                .unwrap();
-            *response.status_mut() = StatusCode::PARTIAL_CONTENT;
-            response.headers_mut().insert(
-                "Content-Range",
-                format!("bytes {}-{}/{}", start, end, file_len)
-                    .parse()
-                    .unwrap(),
-            );
-            *response.body_mut() = Full::new(Bytes::from(stream));
-        }
+        // let mut concurrent_count = 0;
+        // if let Some(concurrent_count_string) = get("over_size") {
+        //     let concurrent_count_result = concurrent_count_string.parse::<u32>();
+        //     if !concurrent_count_result.is_err() {
+        //         concurrent_count = concurrent_count_result.unwrap();
+        //     }
+        // }
+
+        // let is_over_size = (end - start) > max_chunk_size;
+        // if is_over_size {
+        //     *response.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
+        //     return response;
+        // }
+        file.seek(io::SeekFrom::Start(start)).unwrap();
+        let mut stream = Vec::with_capacity((max_chunk_size) as usize);
+        file.take((end - start + 1) as u64)
+            .read_to_end(&mut stream)
+            .unwrap();
+        *response.status_mut() = StatusCode::PARTIAL_CONTENT;
+        response.headers_mut().insert(
+            "Content-Range",
+            format!("bytes {}-{}/{}", start, end, file_len)
+                .parse()
+                .unwrap(),
+        );
+        *response.body_mut() = Full::new(Bytes::from(stream));
     } else {
         response = handle_get_all_resp(file_path).await;
     }
