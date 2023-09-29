@@ -11,7 +11,7 @@ use hyper::{
 };
 use mime_guess::from_path;
 
-use crate::util::get_header;
+use crate::{config, util::get_header};
 
 pub async fn handle_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Response<Full<Bytes>> {
     let mut response = Response::new(Full::new(Bytes::from("")));
@@ -27,7 +27,7 @@ pub async fn handle_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         let mut start = 0;
         let end: u64;
         let bounds = range.strip_prefix("bytes=").unwrap();
-        let max_chunk_size = (file_len / 1024) * 50;
+        let max_chunk_size = (file_len / 1024) * 30;
         // log::info!("file_len: {}, max chunk size: {}", file_len, max_chunk_size);
         if bounds.contains("-") {
             let parts = bounds.split('-').collect::<Vec<_>>();
@@ -48,13 +48,14 @@ pub async fn handle_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         //     }
         // }
 
-        // let is_over_size = (end - start) > max_chunk_size;
-        // if is_over_size {
-        //     *response.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
-        //     return response;
-        // }
+        let is_over_size = (end - start) > max_chunk_size;
+        let cfg = config::get_config();
+        if is_over_size && cfg.mode == "dev" {
+            *response.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
+            return response;
+        }
         file.seek(io::SeekFrom::Start(start)).unwrap();
-        let mut stream = Vec::with_capacity((max_chunk_size) as usize);
+        let mut stream = Vec::with_capacity((end - start + 1) as usize);
         file.take((end - start + 1) as u64)
             .read_to_end(&mut stream)
             .unwrap();

@@ -7,6 +7,7 @@ pub struct Config {
     pub log: String,
     pub user: String,
     pub pwd: String,
+    pub mode: String,
     // config: String,
 }
 
@@ -21,6 +22,7 @@ fn load_config() -> Config {
         log: "error".to_string(),
         user: "".to_string(),
         pwd: "".to_string(),
+        mode: "".to_string(),
         // config: "".to_string(),
     };
 
@@ -34,6 +36,7 @@ fn load_config() -> Config {
             "log" => config.log = value.into(),
             "user" => config.user = value.into(),
             "pwd" => config.pwd = value.into(),
+            "mode" => config.mode = value.into(),
             _ => {}
         }
     }
