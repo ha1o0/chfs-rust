@@ -1,7 +1,7 @@
 use crate::cache::exist;
 use crate::config;
 use crate::exmethod::ExtendMethod;
-use crate::http_methods::{get, options, propfind};
+use crate::http_methods::{get, head, options, propfind};
 use crate::util::{get_header, get_req_path};
 use chrono::Local;
 use http_body_util::Full;
@@ -57,6 +57,9 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
             }
             &Method::GET => {
                 resp = get::handle_resp(&req, &file_path).await;
+            }
+            &Method::HEAD => {
+                resp = head::handle_resp(&file_path).await;
             }
             &Method::PUT => {
                 resp = Response::new(Full::new(Bytes::from("Hello, Webdav, PUT")));
