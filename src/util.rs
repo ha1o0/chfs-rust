@@ -1,5 +1,10 @@
+use std::{
+    collections::HashMap,
+    io::{self},
+};
+
 use chrono::{DateTime, Utc};
-use hyper::{body::Incoming, HeaderMap, Request};
+use hyper::{body::Incoming, HeaderMap, Request, StatusCode};
 use urlencoding::{decode, encode};
 
 pub fn get_header<'a>(
@@ -54,6 +59,30 @@ pub fn format_date_time(dt: std::time::SystemTime) -> String {
     DateTime::<Utc>::from(dt)
         .format("%a, %d %b %Y %H:%M:%S GMT")
         .to_string()
+}
+
+lazy_static::lazy_static! {
+    static ref ERROR_KIND_TO_STATUS_CODE: HashMap<io::ErrorKind, StatusCode> = {
+        let mut m = HashMap::new();
+        m.insert(io::ErrorKind::PermissionDenied, StatusCode::FORBIDDEN);
+        m.insert(io::ErrorKind::ConnectionRefused, StatusCode::BAD_GATEWAY);
+        m.insert(io::ErrorKind::NotFound, StatusCode::NOT_FOUND);
+        m.insert(io::ErrorKind::AlreadyExists, StatusCode::CONFLICT);
+        m
+    };
+}
+
+const DEFAULT_ERROR_STATUS: StatusCode = StatusCode::INTERNAL_SERVER_ERROR;
+
+pub fn map_io_result(result: io::Result<()>, success_status: StatusCode) -> StatusCode {
+    match result {
+        Ok(_) => success_status,
+
+        Err(ref err) => ERROR_KIND_TO_STATUS_CODE
+            .get(&err.kind())
+            .cloned()
+            .unwrap_or(DEFAULT_ERROR_STATUS),
+    }
 }
 
 // pub fn get_creation_date(file_path: &str) -> String {
