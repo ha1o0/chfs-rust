@@ -1,7 +1,7 @@
 use crate::cache::exist;
 use crate::config;
 use crate::exmethod::ExtendMethod;
-use crate::http_methods::{get, head, options, propfind};
+use crate::http_methods::{get, head, mkcol, options, propfind};
 use crate::util::{get_header, get_req_path};
 use chrono::Local;
 use http_body_util::Full;
@@ -40,7 +40,9 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
     path.replace_range(0..server_prefix.len(), "");
     // 被访问资源绝对路径
     let file_path = Path::new(&base_dir).join(path.trim_start_matches('/'));
-    if !file_path.exists() && !file_path.is_dir() || !req_path.starts_with("/webdav") {
+    if (method != Method::from(ExtendMethod::MKCOL) && !file_path.exists() && !file_path.is_dir())
+        || !req_path.starts_with("/webdav")
+    {
         *resp.status_mut() = StatusCode::NOT_FOUND;
         return Ok(resp);
     }
@@ -50,6 +52,8 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
         resp = propfind::handle_resp(&req, file_path, server_prefix, base_dir);
     } else if method == Method::from(ExtendMethod::COPY) {
         resp = Response::new(Full::new(Bytes::from("Hello, Webdav, COPY")));
+    } else if method == Method::from(ExtendMethod::MKCOL) {
+        resp = mkcol::handle_resp(&file_path).await;
     } else {
         match method {
             &Method::OPTIONS => {
