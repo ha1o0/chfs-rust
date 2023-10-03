@@ -9,7 +9,7 @@ use mime_guess::from_path;
 
 use crate::util::{encode_uri, format_date_time, get_header};
 
-pub fn handle_resp(
+pub async fn handle_resp(
     req: &Request<Incoming>,
     file_path: PathBuf,
     server_prefix: &str,

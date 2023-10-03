@@ -74,7 +74,7 @@ lazy_static::lazy_static! {
 
 const DEFAULT_ERROR_STATUS: StatusCode = StatusCode::INTERNAL_SERVER_ERROR;
 
-pub fn map_io_result(result: io::Result<()>, success_status: StatusCode) -> StatusCode {
+pub fn map_io_result<T>(result: io::Result<T>, success_status: StatusCode) -> StatusCode {
     match result {
         Ok(_) => success_status,
 

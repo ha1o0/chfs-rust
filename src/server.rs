@@ -1,7 +1,7 @@
 use crate::cache::exist;
 use crate::config;
 use crate::exmethod::ExtendMethod;
-use crate::http_methods::{delete, get, head, mkcol, options, propfind};
+use crate::http_methods::{delete, get, head, mkcol, options, propfind, put};
 use crate::util::{get_header, get_req_path};
 use chrono::Local;
 use http_body_util::Full;
@@ -14,8 +14,9 @@ use std::path::Path;
 
 pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
     log::info!("req: {:?}", &req);
-    let method = req.method();
     let mut resp = Response::new(Full::new(Bytes::from("")));
+    let method = req.method().clone();
+    let headers = req.headers().clone();
     let auth_header = get_header(&req, "Authorization", "");
     // Basic Authentication
     if method != Method::OPTIONS
@@ -40,7 +41,10 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
     path.replace_range(0..server_prefix.len(), "");
     // 被访问资源绝对路径
     let file_path = Path::new(&base_dir).join(path.trim_start_matches('/'));
-    if (method != Method::from(ExtendMethod::MKCOL) && !file_path.exists() && !file_path.is_dir())
+    if (method != Method::from(ExtendMethod::MKCOL)
+        && method != Method::PUT
+        && !file_path.exists()
+        && !file_path.is_dir())
         || !req_path.starts_with("/webdav")
     {
         *resp.status_mut() = StatusCode::NOT_FOUND;
@@ -49,30 +53,30 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
 
     // 实现各个 HTTP 方法
     if method == Method::from(ExtendMethod::PROPFIND) {
-        resp = propfind::handle_resp(&req, file_path, server_prefix, base_dir);
+        resp = propfind::handle_resp(&req, file_path, server_prefix, base_dir).await;
     } else if method == Method::from(ExtendMethod::COPY) {
         resp = Response::new(Full::new(Bytes::from("Hello, Webdav, COPY")));
     } else if method == Method::from(ExtendMethod::MKCOL) {
         resp = mkcol::handle_resp(&file_path).await;
     } else {
         match method {
-            &Method::OPTIONS => {
-                resp = options::handle_resp();
+            Method::OPTIONS => {
+                resp = options::handle_resp().await;
             }
-            &Method::GET => {
+            Method::GET => {
                 resp = get::handle_resp(&req, &file_path).await;
             }
-            &Method::HEAD => {
+            Method::HEAD => {
                 resp = head::handle_resp(&file_path).await;
             }
-            &Method::DELETE => {
+            Method::DELETE => {
                 resp = delete::handle_resp(&file_path).await;
             }
-            &Method::PUT => {
-                resp = Response::new(Full::new(Bytes::from("Hello, Webdav, PUT")));
+            Method::PUT => {
+                resp = put::handle_resp(req, &file_path).await.unwrap();
             }
             _ => {
-                resp = Response::new(Full::new(Bytes::from("Hello, Webdav")));
+                *resp.status_mut() = StatusCode::OK;
             }
         }
     }
@@ -87,7 +91,7 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
         log::info!("{:?}", resp.headers());
     }
 
-    if req.headers().contains_key(CONNECTION) {
+    if headers.contains_key(CONNECTION) {
         resp.headers_mut()
             .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
     }

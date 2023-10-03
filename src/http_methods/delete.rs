@@ -10,9 +10,9 @@ use crate::util::map_io_result;
 
 pub async fn handle_resp(path: &PathBuf) -> Response<Full<Bytes>> {
     let mut response = Response::new(Full::new(Bytes::from("")));
-    let file_err = fs::remove_file(path);
-    if file_err.is_ok() {
-        let status_code = map_io_result(file_err, StatusCode::NO_CONTENT);
+    let file_result = fs::remove_file(path);
+    if file_result.is_ok() {
+        let status_code = map_io_result(file_result, StatusCode::NO_CONTENT);
         *response.status_mut() = status_code;
         return response;
     }
