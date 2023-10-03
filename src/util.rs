@@ -5,6 +5,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use hyper::{body::Incoming, HeaderMap, Request, StatusCode};
+use url::Url;
 use urlencoding::{decode, encode};
 
 pub fn get_header<'a>(
@@ -39,6 +40,26 @@ pub fn decode_uri(uri: &str) -> String {
 
 pub fn encode_uri(uri: &str) -> String {
     encode(uri).to_string().replace("%2F", "/")
+}
+
+pub fn extract_relative_path(full_url: &str, domain: &str) -> Option<String> {
+    // 解析完整的 URL
+    if let Ok(url) = Url::parse(full_url) {
+        // 获取 URL 的主机部分（域名）
+        if let Some(host) = url.host_str() {
+            if let Some(port) = url.port_or_known_default() {
+                let host_port = format!("{}:{}", host, port);
+                log::info!("host_port: {}", host_port);
+                // 检查主机是否与给定的域名匹配
+                if host_port == domain {
+                    // 提取相对路径并克隆到一个 String 中
+                    let path = url.path().to_string();
+                    return Some(path);
+                }
+            }
+        }
+    }
+    None
 }
 
 pub fn get_header_value<'a>(req: &'a Request<Incoming>, header_name: &'a str) -> Option<&'a str> {
