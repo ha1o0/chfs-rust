@@ -1,7 +1,7 @@
 use crate::cache::exist;
 use crate::config;
 use crate::exmethod::ExtendMethod;
-use crate::http_methods::{delete, exmove, get, head, mkcol, options, propfind, put};
+use crate::http_methods::{copy, delete, exmove, get, head, mkcol, options, propfind, put};
 use crate::util::{get_header, get_req_path};
 use chrono::Local;
 use http_body_util::Full;
@@ -55,7 +55,7 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
     if method == Method::from(ExtendMethod::PROPFIND) {
         resp = propfind::handle_resp(&req, file_path, server_prefix, base_dir).await;
     } else if method == Method::from(ExtendMethod::COPY) {
-        resp = Response::new(Full::new(Bytes::from("Hello, Webdav, COPY")));
+        resp = copy::handle_resp(&req, &file_path, base_dir, server_prefix).await;
     } else if method == Method::from(ExtendMethod::MKCOL) {
         resp = mkcol::handle_resp(&file_path).await;
     } else if method == Method::from(ExtendMethod::MOVE) {

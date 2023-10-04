@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     io::{self},
+    path::PathBuf,
 };
 
 use chrono::{DateTime, Utc};
@@ -42,6 +43,16 @@ pub fn encode_uri(uri: &str) -> String {
     encode(uri).to_string().replace("%2F", "/")
 }
 
+pub fn decode_path(path: &PathBuf) -> String {
+    let uri = path.to_str().unwrap();
+    decode(uri).unwrap().to_string()
+}
+
+pub fn encode_path(path: &PathBuf) -> String {
+    let uri = path.to_str().unwrap();
+    encode(uri).to_string().replace("%2F", "/")
+}
+
 pub fn extract_relative_path(full_url: &str, domain: &str) -> Option<String> {
     // 解析完整的 URL
     if let Ok(url) = Url::parse(full_url) {
@@ -49,7 +60,6 @@ pub fn extract_relative_path(full_url: &str, domain: &str) -> Option<String> {
         if let Some(host) = url.host_str() {
             if let Some(port) = url.port_or_known_default() {
                 let host_port = format!("{}:{}", host, port);
-                log::info!("host_port: {}", host_port);
                 // 检查主机是否与给定的域名匹配
                 if host_port == domain {
                     // 提取相对路径并克隆到一个 String 中
