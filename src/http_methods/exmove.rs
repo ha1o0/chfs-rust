@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use crate::util::{decode_uri, extract_relative_path, get_header, map_io_result};
+use crate::{
+    config,
+    util::{decode_uri, extract_relative_path, get_header, map_io_result},
+};
 use http_body_util::Full;
 use hyper::{
     body::{Bytes, Incoming},
@@ -8,12 +11,7 @@ use hyper::{
 };
 use tokio::fs;
 
-pub async fn handle_resp(
-    req: &Request<Incoming>,
-    from_path: &PathBuf,
-    base_dir: &str,
-    server_prefix: &str,
-) -> Response<Full<Bytes>> {
+pub async fn handle_resp(req: &Request<Incoming>, from_path: &PathBuf) -> Response<Full<Bytes>> {
     // 创建响应
     let mut response = Response::new(Full::new(Bytes::from("")));
     let destination = get_header(req, "destination", "");
@@ -26,6 +24,8 @@ pub async fn handle_resp(
         return response;
     }
     let mut rel_path = rel_path_result.unwrap();
+    let server_prefix = config::get_server_prefix();
+    let base_dir = config::get_base_dir();
     rel_path.replace_range(0..server_prefix.len(), "");
     let to_path = Path::new(&base_dir).join(rel_path.trim_start_matches('/'));
     // log::info!("to path: {:?}", to_path);

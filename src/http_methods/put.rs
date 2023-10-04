@@ -6,7 +6,7 @@ use hyper::{
     Request, Response, StatusCode,
 };
 
-use crate::util::map_io_result;
+use crate::util::{decode_path, map_io_result};
 
 pub async fn handle_resp(
     req: Request<Incoming>,
@@ -16,7 +16,7 @@ pub async fn handle_resp(
     let mut response = Response::new(Full::new(Bytes::from("")));
     *response.status_mut() = StatusCode::CREATED;
     // 创建用于写入的文件
-    let file_result = File::create(path);
+    let file_result = File::create(decode_path(path));
     if file_result.is_err() {
         let status_code = map_io_result(file_result, StatusCode::CREATED);
         *response.status_mut() = status_code;

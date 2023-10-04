@@ -8,6 +8,7 @@ pub struct Config {
     pub user: String,
     pub pwd: String,
     pub mode: String,
+    pub server_prefix: String,
     // config: String,
 }
 
@@ -23,6 +24,7 @@ fn load_config() -> Config {
         user: "".to_string(),
         pwd: "".to_string(),
         mode: "".to_string(),
+        server_prefix: "/webdav".to_string(),
         // config: "".to_string(),
     };
 
@@ -37,6 +39,7 @@ fn load_config() -> Config {
             "user" => config.user = value.into(),
             "pwd" => config.pwd = value.into(),
             "mode" => config.mode = value.into(),
+            "server_prefix" => config.server_prefix = value.into(),
             _ => {}
         }
     }
@@ -46,4 +49,14 @@ fn load_config() -> Config {
 
 pub fn get_config() -> &'static Config {
     &CONFIG
+}
+
+pub fn get_server_prefix() -> &'static str {
+    let cfg = self::get_config();
+    &cfg.server_prefix
+}
+
+pub fn get_base_dir() -> &'static str {
+    let cfg = self::get_config();
+    &cfg.path
 }

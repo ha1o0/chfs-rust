@@ -7,38 +7,23 @@ use hyper::{
 };
 use mime_guess::from_path;
 
-use crate::util::{encode_uri, format_date_time, get_header};
+use crate::{
+    config,
+    util::{encode_uri, format_date_time, get_header},
+};
 
-pub async fn handle_resp(
-    req: &Request<Incoming>,
-    file_path: PathBuf,
-    server_prefix: &str,
-    base_dir: &str,
-) -> Response<Full<Bytes>> {
+pub async fn handle_resp(req: &Request<Incoming>, file_path: PathBuf) -> Response<Full<Bytes>> {
     let depth = get_header(req, "depth", "0");
     let mut multistatus_xml = String::new();
     multistatus_xml.push_str(r#"<?xml version="1.0" encoding="utf-8"?>"#);
     multistatus_xml.push_str(r#"<D:multistatus xmlns:D="DAV:">"#);
     if depth == "0" {
-        generate_content_xml(
-            req,
-            &mut multistatus_xml,
-            file_path,
-            base_dir,
-            server_prefix,
-        );
+        generate_content_xml(req, &mut multistatus_xml, file_path);
     } else {
         for entry in fs::read_dir(&file_path).unwrap() {
             if let Ok(entry) = entry {
                 let entry_path = entry.path();
-                // log::info!("sub: {:?}, {}", entry_path, base_dir);
-                generate_content_xml(
-                    req,
-                    &mut multistatus_xml,
-                    entry_path,
-                    base_dir,
-                    server_prefix,
-                );
+                generate_content_xml(req, &mut multistatus_xml, entry_path);
             }
         }
     }
@@ -55,19 +40,14 @@ fn generate_content_xml(
     _req: &Request<Incoming>,
     multistatus_xml: &mut String,
     entry_path: PathBuf,
-    base_dir: &str,
-    server_prefix: &str,
 ) {
-    let mut server_prefix_with_suffix = server_prefix.to_string();
+    let base_dir = config::get_base_dir();
+    let mut server_prefix_with_suffix = config::get_server_prefix().to_string();
     if !server_prefix_with_suffix.ends_with("/") {
         server_prefix_with_suffix += "/";
     }
     let mut relative_path = entry_path.to_string_lossy().to_owned().to_string();
     relative_path.replace_range(0..base_dir.len(), &server_prefix_with_suffix);
-    // log::info!(
-    //     "inner: {}---{}==={:?}",
-    //     server_prefix_with_suffix, base_dir, entry_path
-    // );
     multistatus_xml.push_str("<D:response>\n");
     let encode_relative_path = encode_uri(&relative_path);
     multistatus_xml

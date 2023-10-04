@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use crate::util::{decode_path, decode_uri, extract_relative_path, get_header, map_io_result};
+use crate::{
+    config,
+    util::{decode_path, decode_uri, extract_relative_path, get_header, map_io_result},
+};
 use async_recursion::async_recursion;
 use http_body_util::Full;
 use hyper::{
@@ -9,14 +12,9 @@ use hyper::{
 };
 use tokio::fs;
 
-pub async fn handle_resp(
-    req: &Request<Incoming>,
-    from_path: &PathBuf,
-    base_dir: &str,
-    server_prefix: &str,
-) -> Response<Full<Bytes>> {
+pub async fn handle_resp(req: &Request<Incoming>, from_path: &PathBuf) -> Response<Full<Bytes>> {
     let mut response = Response::new(Full::new(Bytes::from("")));
-    let to_path = get_to_path(req, base_dir, server_prefix);
+    let to_path = get_to_path(req);
     if to_path.is_none() {
         *response.status_mut() = StatusCode::NOT_FOUND;
         return response;
@@ -86,7 +84,9 @@ async fn copy_file(from_path: &str, to_path: &str) -> StatusCode {
     map_io_result(copy_result, StatusCode::CREATED)
 }
 
-fn get_to_path(req: &Request<Incoming>, base_dir: &str, server_prefix: &str) -> Option<PathBuf> {
+fn get_to_path(req: &Request<Incoming>) -> Option<PathBuf> {
+    let server_prefix = config::get_server_prefix();
+    let base_dir = config::get_base_dir();
     let destination = get_header(req, "destination", "");
     let host = get_header(req, "host", "");
     // log::info!("destination: {}, host: {}", destination, host);

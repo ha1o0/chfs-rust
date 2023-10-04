@@ -32,11 +32,10 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
         return Ok(resp);
     }
     // webdav 访问路径前缀
-    let server_prefix = "/webdav";
+    let server_prefix = config::get_server_prefix();
     let req_path = get_req_path(&req);
     // 要挂载的目录
-    let cfg = config::get_config();
-    let base_dir = cfg.path.as_str();
+    let base_dir = &config::get_base_dir();
     let mut path = req_path.to_string();
     path.replace_range(0..server_prefix.len(), "");
     // 被访问资源绝对路径
@@ -53,13 +52,13 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
 
     // 实现各个 HTTP 方法
     if method == Method::from(ExtendMethod::PROPFIND) {
-        resp = propfind::handle_resp(&req, file_path, server_prefix, base_dir).await;
+        resp = propfind::handle_resp(&req, file_path).await;
     } else if method == Method::from(ExtendMethod::COPY) {
-        resp = copy::handle_resp(&req, &file_path, base_dir, server_prefix).await;
+        resp = copy::handle_resp(&req, &file_path).await;
     } else if method == Method::from(ExtendMethod::MKCOL) {
         resp = mkcol::handle_resp(&file_path).await;
     } else if method == Method::from(ExtendMethod::MOVE) {
-        resp = exmove::handle_resp(&req, &file_path, base_dir, server_prefix).await;
+        resp = exmove::handle_resp(&req, &file_path).await;
     } else {
         match method {
             Method::OPTIONS => {
