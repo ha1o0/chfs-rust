@@ -46,7 +46,7 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
         && method != Method::PUT
         && !file_path.exists()
         && !file_path.is_dir())
-        || !req_path.starts_with("/webdav")
+        || !req_path.starts_with(&server_prefix)
     {
         *resp.status_mut() = StatusCode::NOT_FOUND;
         return Ok(resp);
@@ -68,6 +68,7 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
         }
     }
     if !has_permission {
+        log::error!("111114");
         *resp.status_mut() = StatusCode::FORBIDDEN;
         return Ok(resp);
     }
