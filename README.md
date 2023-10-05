@@ -15,7 +15,7 @@
         {
           "path": "/Users/guest/", // shared path
           "permission": "R", // current user permission, "RWD" ==> READ/WRITE/DELETE
-          "server_prefix": "/guest" // access url prefix, e.g. "http://192.168.2.2:9988/webdav-guest"
+          "server_prefix": "/guest" // access url prefix, e.g. "http://192.168.2.2:9988/guest"
         },
         {
           "user": "usera",
@@ -35,3 +35,8 @@
     }
    ```
 3. run the server: `./rhfs "config=/path/to/config.json"`
+
+Then you can access the webdav server by using webdav client not browser
++ `http://192.168.2.2:9988/guest` -> only READ
++ `http://192.168.2.2:9988/a` + user auth -> READ & WRITE
++ `http://192.168.2.2:9988/b` + user auth -> READ & WRITE & DELETE
