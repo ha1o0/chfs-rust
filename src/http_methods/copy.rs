@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use crate::{
-    config,
-    util::{decode_path, decode_uri, extract_relative_path, get_header, map_io_result},
+use crate::util::{
+    decode_path, decode_uri, extract_relative_path, get_base_dir, get_header, get_server_prefix,
+    map_io_result,
 };
 use async_recursion::async_recursion;
 use http_body_util::Full;
@@ -85,8 +85,8 @@ async fn copy_file(from_path: &str, to_path: &str) -> StatusCode {
 }
 
 fn get_to_path(req: &Request<Incoming>) -> Option<PathBuf> {
-    let server_prefix = config::get_server_prefix();
-    let base_dir = config::get_base_dir();
+    let server_prefix = get_server_prefix(req);
+    let base_dir = get_base_dir(req);
     let destination = get_header(req, "destination", "");
     let host = get_header(req, "host", "");
     // log::info!("destination: {}, host: {}", destination, host);

@@ -1,8 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use crate::{
-    config,
-    util::{decode_uri, extract_relative_path, get_header, map_io_result},
+use crate::util::{
+    decode_uri, extract_relative_path, get_base_dir, get_header, get_server_prefix, map_io_result,
 };
 use http_body_util::Full;
 use hyper::{
@@ -24,8 +23,8 @@ pub async fn handle_resp(req: &Request<Incoming>, from_path: &PathBuf) -> Respon
         return response;
     }
     let mut rel_path = rel_path_result.unwrap();
-    let server_prefix = config::get_server_prefix();
-    let base_dir = config::get_base_dir();
+    let server_prefix = get_server_prefix(req);
+    let base_dir = get_base_dir(req);
     rel_path.replace_range(0..server_prefix.len(), "");
     let to_path = Path::new(&base_dir).join(rel_path.trim_start_matches('/'));
     // log::info!("to path: {:?}", to_path);

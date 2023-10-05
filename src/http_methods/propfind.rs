@@ -7,10 +7,7 @@ use hyper::{
 };
 use mime_guess::from_path;
 
-use crate::{
-    config,
-    util::{encode_uri, format_date_time, get_header},
-};
+use crate::util::{encode_uri, format_date_time, get_base_dir, get_header, get_server_prefix};
 
 pub async fn handle_resp(req: &Request<Incoming>, file_path: PathBuf) -> Response<Full<Bytes>> {
     let depth = get_header(req, "depth", "0");
@@ -37,12 +34,12 @@ pub async fn handle_resp(req: &Request<Incoming>, file_path: PathBuf) -> Respons
 }
 
 fn generate_content_xml(
-    _req: &Request<Incoming>,
+    req: &Request<Incoming>,
     multistatus_xml: &mut String,
     entry_path: PathBuf,
 ) {
-    let base_dir = config::get_base_dir();
-    let mut server_prefix_with_suffix = config::get_server_prefix().to_string();
+    let base_dir = get_base_dir(req);
+    let mut server_prefix_with_suffix = get_server_prefix(req).to_string();
     if !server_prefix_with_suffix.ends_with("/") {
         server_prefix_with_suffix += "/";
     }

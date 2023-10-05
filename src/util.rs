@@ -9,6 +9,11 @@ use hyper::{body::Incoming, HeaderMap, Request, StatusCode};
 use url::Url;
 use urlencoding::{decode, encode};
 
+use crate::{
+    cache::get,
+    config::{self, Rule},
+};
+
 pub fn get_header<'a>(
     req: &'a Request<Incoming>,
     name: &'a str,
@@ -83,6 +88,36 @@ pub fn get_header_value<'a>(req: &'a Request<Incoming>, header_name: &'a str) ->
         }
     }
     None
+}
+
+pub fn is_guest_by_req(req: &Request<Incoming>) -> bool {
+    if let Some(guest_server_prefix) = get("guest_server_prefix") {
+        return req.uri().to_string().starts_with(&guest_server_prefix);
+    }
+    false
+}
+
+pub fn get_server_prefix(req: &Request<Incoming>) -> String {
+    if let Some(rule) = self::get_current_user_rule(req) {
+        return rule.server_prefix.to_string();
+    }
+    "".to_string()
+}
+
+pub fn get_base_dir(req: &Request<Incoming>) -> String {
+    if let Some(rule) = self::get_current_user_rule(req) {
+        return rule.path.to_string();
+    }
+    "".to_string()
+}
+
+pub fn get_current_user_rule(req: &Request<Incoming>) -> Option<&Rule> {
+    let cfg = config::get_config();
+    let mut user_key = "guest";
+    if !self::is_guest_by_req(req) {
+        user_key = get_header(req, "Authorization", "");
+    }
+    cfg.user_rule.get(user_key)
 }
 
 // 格式化日期时间为RFC1123格式

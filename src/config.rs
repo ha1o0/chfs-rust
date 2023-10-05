@@ -1,62 +1,78 @@
+use std::{collections::HashMap, env, fs};
+
+use base64::{engine::general_purpose, Engine};
+use serde::{Deserialize, Serialize};
+
 use lazy_static::lazy_static;
 
-#[derive(Debug)]
-pub struct Config {
-    pub port: u16,
-    pub path: String,
-    pub log: String,
-    pub user: String,
-    pub pwd: String,
-    pub mode: String,
-    pub server_prefix: String,
-    // config: String,
-}
+use crate::cache::set;
 
 lazy_static! {
     static ref CONFIG: Config = load_config();
-}
-
-fn load_config() -> Config {
-    let mut config = Config {
-        port: 8000,
-        path: "/".to_string(),
-        log: "error".to_string(),
-        user: "".to_string(),
-        pwd: "".to_string(),
-        mode: "".to_string(),
-        server_prefix: "/webdav".to_string(),
-        // config: "".to_string(),
-    };
-
-    let args: Vec<String> = std::env::args().skip(1).collect();
-
-    for arg in args {
-        let (key, value) = arg.split_once('=').unwrap();
-        match key {
-            "port" => config.port = value.parse().unwrap(),
-            "path" => config.path = value.into(),
-            "log" => config.log = value.into(),
-            "user" => config.user = value.into(),
-            "pwd" => config.pwd = value.into(),
-            "mode" => config.mode = value.into(),
-            "server_prefix" => config.server_prefix = value.into(),
-            _ => {}
-        }
-    }
-
-    config
 }
 
 pub fn get_config() -> &'static Config {
     &CONFIG
 }
 
-pub fn get_server_prefix() -> &'static str {
-    let cfg = self::get_config();
-    &cfg.server_prefix
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Config {
+    #[serde(default)]
+    pub port: u16,
+    #[serde(default)]
+    pub log: String,
+    #[serde(default)]
+    pub mode: String,
+    #[serde(default)]
+    pub rules: Vec<Rule>,
+    #[serde(default)]
+    pub user_rule: HashMap<String, Rule>,
 }
 
-pub fn get_base_dir() -> &'static str {
-    let cfg = self::get_config();
-    &cfg.path
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Rule {
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub user: String,
+    #[serde(default)]
+    pub password: String,
+    #[serde(default)]
+    pub permission: String,
+    #[serde(default)]
+    pub server_prefix: String,
+}
+
+fn load_config() -> Config {
+    let args: Vec<String> = env::args().skip(1).collect();
+    let mut config_json_path = "".to_string();
+    for arg in args {
+        let (key, value) = &arg.split_once('=').unwrap();
+        match key {
+            &"config" => config_json_path = value.to_string(),
+            _ => {}
+        }
+    }
+    let json_str = &fs::read_to_string(config_json_path).unwrap();
+    let mut config: Config = serde_json::from_str(json_str).unwrap();
+    init_user(&mut config);
+    config
+}
+
+pub fn init_user(config: &mut Config) {
+    let rules = &config.rules;
+    for rule in rules {
+        let server_prefix = &rule.server_prefix;
+        let user = &rule.user;
+        let password = &rule.password;
+        // guest is no user and no password
+        if user.len() > 0 && password.len() > 0 {
+            let b64 = general_purpose::STANDARD.encode(user.to_string() + ":" + &password);
+            let auth_b64 = &("Basic ".to_string() + &b64.to_string());
+            config.user_rule.insert(auth_b64.to_string(), rule.clone());
+        } else {
+            config.user_rule.insert("guest".to_string(), rule.clone());
+            set("guest_server_prefix", &server_prefix);
+        }
+    }
 }

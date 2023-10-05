@@ -1,8 +1,6 @@
-use crate::cache::exist;
-use crate::config;
 use crate::exmethod::ExtendMethod;
 use crate::http_methods::{copy, delete, exmove, get, head, mkcol, options, propfind, put};
-use crate::util::{get_header, get_req_path};
+use crate::util::{get_base_dir, get_current_user_rule, get_req_path, get_server_prefix};
 use chrono::Local;
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
@@ -16,14 +14,14 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
     log::info!("req: {:?}", &req);
     let mut resp = Response::new(Full::new(Bytes::from("")));
     let method = req.method().clone();
+    if method == Method::OPTIONS {
+        resp = options::handle_resp().await;
+        return Ok(resp);
+    }
     let headers = req.headers().clone();
-    let auth_header = get_header(&req, "Authorization", "");
     // Basic Authentication
-    if method != Method::OPTIONS
-        && method != Method::HEAD
-        && exist("need_login")
-        && !exist(auth_header)
-    {
+    let current_user_rule = get_current_user_rule(&req);
+    if method != Method::OPTIONS && current_user_rule.is_none() {
         *resp.status_mut() = StatusCode::UNAUTHORIZED;
         resp.headers_mut().insert(
             WWW_AUTHENTICATE,
@@ -31,11 +29,15 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
         );
         return Ok(resp);
     }
-    // webdav 访问路径前缀
-    let server_prefix = config::get_server_prefix();
-    let req_path = get_req_path(&req);
     // 要挂载的目录
-    let base_dir = &config::get_base_dir();
+    let base_dir = get_base_dir(&req);
+    if base_dir.len() == 0 {
+        *resp.status_mut() = StatusCode::NOT_FOUND;
+        return Ok(resp);
+    }
+    // webdav 访问路径前缀
+    let server_prefix = get_server_prefix(&req);
+    let req_path = get_req_path(&req);
     let mut path = req_path.to_string();
     path.replace_range(0..server_prefix.len(), "");
     // 被访问资源绝对路径
@@ -50,6 +52,26 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
         return Ok(resp);
     }
 
+    // 权限校验
+    let permission = current_user_rule.unwrap().permission.to_uppercase();
+    let mut has_permission = true;
+    let read_methods = [
+        Method::GET,
+        Method::HEAD,
+        Method::from(ExtendMethod::PROPFIND),
+    ];
+    if !read_methods.contains(&method) {
+        if method == Method::DELETE {
+            has_permission = permission.contains("D");
+        } else {
+            has_permission = permission.contains("W");
+        }
+    }
+    if !has_permission {
+        *resp.status_mut() = StatusCode::FORBIDDEN;
+        return Ok(resp);
+    }
+
     // 实现各个 HTTP 方法
     if method == Method::from(ExtendMethod::PROPFIND) {
         resp = propfind::handle_resp(&req, file_path).await;
@@ -61,9 +83,6 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
         resp = exmove::handle_resp(&req, &file_path).await;
     } else {
         match method {
-            Method::OPTIONS => {
-                resp = options::handle_resp().await;
-            }
             Method::GET => {
                 resp = get::handle_resp(&req, &file_path).await;
             }
