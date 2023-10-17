@@ -96,6 +96,6 @@ fn get_to_path(req: &Request<Incoming>) -> Option<PathBuf> {
         return None;
     }
     let mut rel_path = rel_path_result.unwrap();
-    rel_path.replace_range(0..server_prefix.len(), "");
+    rel_path = rel_path.replacen(&server_prefix, "", 1);
     Some(Path::new(&base_dir).join(rel_path.trim_start_matches('/')))
 }

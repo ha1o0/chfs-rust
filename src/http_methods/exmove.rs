@@ -25,7 +25,7 @@ pub async fn handle_resp(req: &Request<Incoming>, from_path: &PathBuf) -> Respon
     let mut rel_path = rel_path_result.unwrap();
     let server_prefix = get_server_prefix(req);
     let base_dir = get_base_dir(req);
-    rel_path.replace_range(0..server_prefix.len(), "");
+    rel_path = rel_path.replacen(&server_prefix, "", 1);
     let to_path = Path::new(&base_dir).join(rel_path.trim_start_matches('/'));
     // log::info!("to path: {:?}", to_path);
     let move_result = fs::rename(

@@ -44,7 +44,7 @@ fn generate_content_xml(
         server_prefix_with_suffix += "/";
     }
     let mut relative_path = entry_path.to_string_lossy().to_owned().to_string();
-    relative_path.replace_range(0..base_dir.len(), &server_prefix_with_suffix);
+    relative_path = relative_path.replacen(&base_dir, &server_prefix_with_suffix, 1);
     multistatus_xml.push_str("<D:response>\n");
     let encode_relative_path = encode_uri(&relative_path);
     multistatus_xml

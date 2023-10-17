@@ -39,7 +39,7 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Byte
     let server_prefix = get_server_prefix(&req);
     let req_path = get_req_path(&req);
     let mut path = req_path.to_string();
-    path.replace_range(0..server_prefix.len(), "");
+    path = path.replacen(&server_prefix, "", 1);
     // 被访问资源绝对路径
     let file_path = Path::new(&base_dir).join(path.trim_start_matches('/'));
     if (method != Method::from(ExtendMethod::MKCOL)
