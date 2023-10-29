@@ -5,7 +5,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use hyper::{body::Incoming, HeaderMap, Request, StatusCode};
+use hyper::{Body, HeaderMap, Request, StatusCode};
 use url::Url;
 use urlencoding::{decode, encode};
 
@@ -14,11 +14,7 @@ use crate::{
     config::{self, Rule},
 };
 
-pub fn get_header<'a>(
-    req: &'a Request<Incoming>,
-    name: &'a str,
-    default_value: &'a str,
-) -> &'a str {
+pub fn get_header<'a>(req: &'a Request<Body>, name: &'a str, default_value: &'a str) -> &'a str {
     let mut result = default_value;
     if let Some(value) = get_header_value(req, name) {
         result = value;
@@ -26,7 +22,7 @@ pub fn get_header<'a>(
     result
 }
 
-pub fn get_protocol(req: &Request<Incoming>) -> &str {
+pub fn get_protocol(req: &Request<Body>) -> &str {
     let mut result = "http";
     if let Some(uri) = req.uri().scheme_str() {
         result = uri;
@@ -34,7 +30,7 @@ pub fn get_protocol(req: &Request<Incoming>) -> &str {
     result
 }
 
-pub fn get_req_path(req: &Request<Incoming>) -> String {
+pub fn get_req_path(req: &Request<Body>) -> String {
     let path = req.uri().path();
     decode_uri(path)
     // encode_uri(path)
@@ -77,7 +73,7 @@ pub fn extract_relative_path(full_url: &str, domain: &str) -> Option<String> {
     None
 }
 
-pub fn get_header_value<'a>(req: &'a Request<Incoming>, header_name: &'a str) -> Option<&'a str> {
+pub fn get_header_value<'a>(req: &'a Request<Body>, header_name: &'a str) -> Option<&'a str> {
     // 获取HTTP请求的头部
     let headers: &HeaderMap = req.headers();
     // 使用header_name获取特定的头部值
@@ -90,28 +86,28 @@ pub fn get_header_value<'a>(req: &'a Request<Incoming>, header_name: &'a str) ->
     None
 }
 
-pub fn is_guest_by_req(req: &Request<Incoming>) -> bool {
+pub fn is_guest_by_req(req: &Request<Body>) -> bool {
     if let Some(guest_server_prefix) = get("guest_server_prefix") {
         return req.uri().to_string().starts_with(&guest_server_prefix);
     }
     false
 }
 
-pub fn get_server_prefix(req: &Request<Incoming>) -> String {
+pub fn get_server_prefix(req: &Request<Body>) -> String {
     if let Some(rule) = self::get_current_user_rule(req) {
         return rule.server_prefix.to_string();
     }
     "".to_string()
 }
 
-pub fn get_base_dir(req: &Request<Incoming>) -> String {
+pub fn get_base_dir(req: &Request<Body>) -> String {
     if let Some(rule) = self::get_current_user_rule(req) {
         return rule.path.to_string();
     }
     "".to_string()
 }
 
-pub fn get_current_user_rule(req: &Request<Incoming>) -> Option<&Rule> {
+pub fn get_current_user_rule(req: &Request<Body>) -> Option<&Rule> {
     let cfg = config::get_config();
     let mut user_key = "guest";
     if !self::is_guest_by_req(req) {

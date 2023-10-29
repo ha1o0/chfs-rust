@@ -3,13 +3,12 @@ use std::{
     path::PathBuf,
 };
 
-use http_body_util::Full;
-use hyper::{body::Bytes, Response, StatusCode};
+use hyper::{Body, Response, StatusCode};
 
 use crate::util::map_io_result;
 
-pub async fn handle_resp(path: &PathBuf) -> Response<Full<Bytes>> {
-    let mut response = Response::new(Full::new(Bytes::from("")));
+pub async fn handle_resp(path: &PathBuf) -> Response<Body> {
+    let mut response = Response::new(Body::from(""));
     let file_result = fs::remove_file(path);
     if file_result.is_ok() {
         let status_code = map_io_result(file_result, StatusCode::NO_CONTENT);

@@ -5,15 +5,11 @@ use crate::util::{
     map_io_result,
 };
 use async_recursion::async_recursion;
-use http_body_util::Full;
-use hyper::{
-    body::{Bytes, Incoming},
-    Request, Response, StatusCode,
-};
+use hyper::{Body, Request, Response, StatusCode};
 use tokio::fs;
 
-pub async fn handle_resp(req: &Request<Incoming>, from_path: &PathBuf) -> Response<Full<Bytes>> {
-    let mut response = Response::new(Full::new(Bytes::from("")));
+pub async fn handle_resp(req: &Request<Body>, from_path: &PathBuf) -> Response<Body> {
+    let mut response = Response::new(Body::from(""));
     let to_path = get_to_path(req);
     if to_path.is_none() {
         *response.status_mut() = StatusCode::NOT_FOUND;
@@ -84,7 +80,7 @@ async fn copy_file(from_path: &str, to_path: &str) -> StatusCode {
     map_io_result(copy_result, StatusCode::CREATED)
 }
 
-fn get_to_path(req: &Request<Incoming>) -> Option<PathBuf> {
+fn get_to_path(req: &Request<Body>) -> Option<PathBuf> {
     let server_prefix = get_server_prefix(req);
     let base_dir = get_base_dir(req);
     let destination = get_header(req, "destination", "");

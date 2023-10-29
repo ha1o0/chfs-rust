@@ -1,23 +1,22 @@
 use std::{
-    fs::File,
     io::{self, Read, Seek},
     path::PathBuf,
 };
 
-use http_body_util::Full;
-use hyper::{
-    body::{Bytes, Incoming},
-    Request, Response, StatusCode,
-};
+use hyper::{Body, Request, Response, StatusCode};
 use mime_guess::from_path;
+use tokio::fs::File;
+use tokio_util::codec::{BytesCodec, FramedRead};
 
 use crate::{config, util::get_header};
 
-pub async fn handle_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Response<Full<Bytes>> {
-    let mut response = Response::new(Full::new(Bytes::from("")));
+static NOTFOUND: &[u8] = b"Not Found";
+
+pub async fn handle_resp(req: &Request<Body>, file_path: &PathBuf) -> Response<Body> {
+    let mut response = Response::new(Body::from(""));
     let range = get_header(req, "range", "");
     if range.len() > 0 {
-        let mut file = File::open(file_path).unwrap();
+        let mut file = std::fs::File::open(file_path).unwrap();
         let metadata = file.metadata().unwrap();
         let file_len = metadata.len();
         let mime_type = from_path(file_path).first_or_octet_stream();
@@ -66,7 +65,7 @@ pub async fn handle_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
                 .parse()
                 .unwrap(),
         );
-        *response.body_mut() = Full::new(Bytes::from(stream));
+        *response.body_mut() = Body::from(stream);
     } else {
         response = handle_get_all_resp(file_path).await;
     }
@@ -74,36 +73,25 @@ pub async fn handle_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
     response
 }
 
-async fn handle_get_all_resp(file_path: &PathBuf) -> Response<Full<Bytes>> {
-    let file = match File::open(file_path) {
-        Ok(file) => file,
-        Err(_) => {
-            log::error!("not found file");
-            return Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Full::new(Bytes::from("")))
-                .unwrap();
-        }
-    };
+async fn handle_get_all_resp(file_path: &PathBuf) -> Response<Body> {
     let mime_type = from_path(file_path).first_or_octet_stream();
-    // 读取文件内容
-    let mut buffer = Vec::new();
-    match file.take(usize::MAX as u64).read_to_end(&mut buffer) {
-        Ok(_) => {
-            let mut response = Response::new(Full::new(Bytes::from("")));
-            response.headers_mut().insert(
-                "Content-Type",
-                format!("{}", mime_type.as_ref()).parse().unwrap(),
-            );
-            *response.body_mut() = Full::new(Bytes::from(buffer));
-            response
-        }
-        Err(_) => {
-            log::error!("not write buffer");
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Full::new(Bytes::from("")))
-                .unwrap();
-        }
+    let mut response = Response::new(Body::from(""));
+    response.headers_mut().insert(
+        "Content-Type",
+        format!("{}", mime_type.as_ref()).parse().unwrap(),
+    );
+    if let Ok(file) = File::open(file_path).await {
+        let stream = FramedRead::new(file, BytesCodec::new());
+        let body = Body::wrap_stream(stream);
+        return Response::new(body);
     }
+
+    not_found()
+}
+
+fn not_found() -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::NOT_FOUND)
+        .body(NOTFOUND.into())
+        .unwrap()
 }

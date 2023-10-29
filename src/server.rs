@@ -2,17 +2,14 @@ use crate::exmethod::ExtendMethod;
 use crate::http_methods::{copy, delete, exmove, get, head, mkcol, options, propfind, put};
 use crate::util::{get_base_dir, get_current_user_rule, get_req_path, get_server_prefix};
 use chrono::Local;
-use http_body_util::Full;
-use hyper::body::{Bytes, Incoming};
 use hyper::header::{CONNECTION, WWW_AUTHENTICATE};
 use hyper::http::HeaderValue;
-use hyper::{Method, Request, Response, StatusCode};
-use std::convert::Infallible;
+use hyper::{Body, Method, Request, Response, StatusCode};
 use std::path::Path;
 
-pub async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
+pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     log::info!("req: {:?}", &req);
-    let mut resp = Response::new(Full::new(Bytes::from("")));
+    let mut resp = Response::new(Body::from(""));
     let method = req.method().clone();
     if method == Method::OPTIONS {
         resp = options::handle_resp().await;

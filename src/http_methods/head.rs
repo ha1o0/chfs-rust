@@ -1,13 +1,11 @@
-use std::{fs::File, path::PathBuf};
-
-use http_body_util::Full;
-use hyper::{body::Bytes, Response};
+use hyper::{Body, Response};
 use mime_guess::from_path;
+use std::{fs::File, path::PathBuf};
 
 use crate::util::format_date_time;
 
-pub async fn handle_resp(file_path: &PathBuf) -> Response<Full<Bytes>> {
-    let mut response = Response::new(Full::new(Bytes::from("")));
+pub async fn handle_resp(file_path: &PathBuf) -> Response<Body> {
+    let mut response = Response::new(Body::from(""));
     let file = File::open(file_path).unwrap();
     let metadata = file.metadata().unwrap();
     let file_len = metadata.len();
