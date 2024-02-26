@@ -1,11 +1,10 @@
 use std::{
-    collections::HashMap,
-    io::{self},
-    path::PathBuf,
+    collections::HashMap, convert::Infallible, io, path::PathBuf
 };
 
 use chrono::{DateTime, Utc};
-use hyper::{body::Incoming, HeaderMap, Request, StatusCode};
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+use hyper::{body::{Bytes, Incoming}, HeaderMap, Request, StatusCode};
 use url::Url;
 use urlencoding::{decode, encode};
 
@@ -149,6 +148,14 @@ pub fn map_io_result<T>(result: io::Result<T>, success_status: StatusCode) -> St
             .cloned()
             .unwrap_or(DEFAULT_ERROR_STATUS),
     }
+}
+
+pub fn empty() -> BoxBody<Bytes, Infallible> {
+    Empty::<Bytes>::new().boxed()
+}
+
+pub fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, Infallible> {
+    Full::new(chunk.into()).boxed()
 }
 
 // pub fn get_creation_date(file_path: &str) -> String {
