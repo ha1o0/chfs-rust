@@ -1,4 +1,4 @@
-use std::{convert::Infallible, fs::File, io::Write, path::PathBuf};
+use std::{fs::File, io::Write, path::PathBuf};
 
 use http_body_util::{combinators::BoxBody, BodyExt};
 use hyper::{
@@ -11,7 +11,7 @@ use crate::util::{decode_path, empty, map_io_result};
 pub async fn handle_resp(
     req: Request<Incoming>,
     path: &PathBuf,
-) -> Result<Response<BoxBody<Bytes, Infallible>>, Box<dyn std::error::Error>> {
+) -> Result<Response<BoxBody<Bytes, std::io::Error>>, Box<dyn std::error::Error>> {
     // 创建响应
     let mut response = Response::new(empty());
     *response.status_mut() = StatusCode::CREATED;

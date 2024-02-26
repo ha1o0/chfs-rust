@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap, convert::Infallible, io, path::PathBuf
+    collections::HashMap, io::{self, Error}, path::PathBuf
 };
 
 use chrono::{DateTime, Utc};
@@ -150,12 +150,12 @@ pub fn map_io_result<T>(result: io::Result<T>, success_status: StatusCode) -> St
     }
 }
 
-pub fn empty() -> BoxBody<Bytes, Infallible> {
-    Empty::<Bytes>::new().boxed()
+pub fn empty() -> BoxBody<Bytes, Error> {
+    Empty::<Bytes>::new().map_err(|e| match e {}).boxed()
 }
 
-pub fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, Infallible> {
-    Full::new(chunk.into()).boxed()
+pub fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, Error> {
+    Full::new(chunk.into()).map_err(|e| match e {}).boxed()
 }
 
 // pub fn get_creation_date(file_path: &str) -> String {

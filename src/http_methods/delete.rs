@@ -1,5 +1,5 @@
 use std::{
-    convert::Infallible, fs, path::PathBuf
+    fs, path::PathBuf
 };
 
 use http_body_util::combinators::BoxBody;
@@ -7,7 +7,7 @@ use hyper::{body::Bytes, Response, StatusCode};
 
 use crate::util::{empty, map_io_result};
 
-pub async fn handle_resp(path: &PathBuf) -> Response<BoxBody<Bytes, Infallible>> {
+pub async fn handle_resp(path: &PathBuf) -> Response<BoxBody<Bytes, std::io::Error>> {
     let mut response = Response::new(empty());
     let file_result = fs::remove_file(path);
     if file_result.is_ok() {

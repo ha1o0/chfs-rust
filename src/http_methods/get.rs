@@ -1,17 +1,19 @@
 use std::{
-    convert::Infallible, fs::File, io::{self, Read, Seek}, path::PathBuf
+    fs::File, io::{self, Read, Seek}, path::PathBuf
 };
 
-use http_body_util::combinators::BoxBody;
+use http_body_util::{combinators::BoxBody, BodyExt, StreamBody};
+use futures_util::TryStreamExt;
 use hyper::{
-    body::{Bytes, Incoming},
+    body::{Bytes, Frame, Incoming},
     Request, Response, StatusCode,
 };
 use mime_guess::from_path;
+use tokio_util::io::ReaderStream;
 
 use crate::{config, util::{empty, full, get_header}};
 
-pub async fn handle_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Response<BoxBody<Bytes, Infallible>> {
+pub async fn handle_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Response<BoxBody<Bytes, std::io::Error>> {
     let mut response = Response::new(empty());
     let range = get_header(req, "range", "");
     if range.len() > 0 {
@@ -66,42 +68,68 @@ pub async fn handle_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Respon
         );
         *response.body_mut() = full(Bytes::from(stream));
     } else {
-        response = handle_get_all_resp(file_path).await;
+        response = get_all_resp(file_path).await;
     }
 
     response
 }
 
-async fn handle_get_all_resp(file_path: &PathBuf) -> Response<BoxBody<Bytes, Infallible>> {
-    let file = match File::open(file_path) {
-        Ok(file) => file,
-        Err(_) => {
-            log::error!("not found file");
-            return Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(empty())
-                .unwrap();
-        }
-    };
-    let mime_type = from_path(file_path).first_or_octet_stream();
-    // 读取文件内容
-    let mut buffer = Vec::new();
-    match file.take(usize::MAX as u64).read_to_end(&mut buffer) {
-        Ok(_) => {
-            let mut response = Response::new(empty());
-            response.headers_mut().insert(
-                "Content-Type",
-                format!("{}", mime_type.as_ref()).parse().unwrap(),
-            );
-            *response.body_mut() = full(Bytes::from(buffer));
-            response
-        }
-        Err(_) => {
-            log::error!("not write buffer");
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(empty())
-                .unwrap();
-        }
+pub async fn get_all_resp(file_path: &PathBuf) -> Response<BoxBody<Bytes, std::io::Error>> {
+    // Open file for reading
+    let file = tokio::fs::File::open(file_path).await;
+    if file.is_err() {
+        log::error!("not found file");
+        return Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(empty())
+            .unwrap();
     }
+
+    let file: tokio::fs::File = file.unwrap();
+
+    // Wrap to a tokio_util::io::ReaderStream
+    let reader_stream: ReaderStream<tokio::fs::File> = ReaderStream::new(file);
+
+    // Convert to http_body_util::BoxBody
+    let stream_body = StreamBody::new(reader_stream.map_ok(Frame::data));
+    let boxed_body = stream_body.boxed();
+    // Send response
+    Response::builder()
+        .status(StatusCode::OK)
+        .body(boxed_body)
+        .unwrap()
 }
+
+// async fn handle_get_all_resp(file_path: &PathBuf) -> Response<BoxBody<Bytes, std::io::Error>> {
+//     let file = match File::open(file_path) {
+//         Ok(file) => file,
+//         Err(_) => {
+//             log::error!("not found file");
+//             return Response::builder()
+//                 .status(StatusCode::NOT_FOUND)
+//                 .body(empty())
+//                 .unwrap();
+//         }
+//     };
+//     let mime_type = from_path(file_path).first_or_octet_stream();
+//     // 读取文件内容
+//     let mut buffer = Vec::new();
+//     match file.take(usize::MAX as u64).read_to_end(&mut buffer) {
+//         Ok(_) => {
+//             let mut response = Response::new(empty());
+//             response.headers_mut().insert(
+//                 "Content-Type",
+//                 format!("{}", mime_type.as_ref()).parse().unwrap(),
+//             );
+//             *response.body_mut() = full(Bytes::from(buffer));
+//             response
+//         }
+//         Err(_) => {
+//             log::error!("not write buffer");
+//             return Response::builder()
+//                 .status(StatusCode::INTERNAL_SERVER_ERROR)
+//                 .body(empty())
+//                 .unwrap();
+//         }
+//     }
+// }

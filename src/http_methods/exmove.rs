@@ -1,4 +1,4 @@
-use std::{convert::Infallible, path::{Path, PathBuf}};
+use std::path::{Path, PathBuf};
 
 use crate::util::{
     decode_uri, empty, extract_relative_path, get_base_dir, get_header, get_server_prefix, map_io_result
@@ -10,7 +10,7 @@ use hyper::{
 };
 use tokio::fs;
 
-pub async fn handle_resp(req: &Request<Incoming>, from_path: &PathBuf) -> Response<BoxBody<Bytes, Infallible>> {
+pub async fn handle_resp(req: &Request<Incoming>, from_path: &PathBuf) -> Response<BoxBody<Bytes, std::io::Error>> {
     // 创建响应
     let mut response = Response::new(empty());
     let destination = get_header(req, "destination", "");

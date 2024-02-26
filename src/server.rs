@@ -7,10 +7,9 @@ use hyper::body::{Bytes, Incoming};
 use hyper::header::{CONNECTION, WWW_AUTHENTICATE};
 use hyper::http::HeaderValue;
 use hyper::{Method, Request, Response, StatusCode};
-use std::convert::Infallible;
 use std::path::Path;
 
-pub async fn handle_request(req: Request<Incoming>) -> Result<Response<BoxBody<Bytes, Infallible>>, Infallible> {
+pub async fn handle_request(req: Request<Incoming>) -> Result<Response<BoxBody<Bytes, std::io::Error>>, std::io::Error> {
     log::info!("req: {:?}", &req);
     let mut resp = Response::new(empty());
     let method = req.method().clone();

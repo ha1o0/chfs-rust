@@ -1,4 +1,4 @@
-use std::{convert::Infallible, fs::File, path::PathBuf};
+use std::{fs::File, path::PathBuf};
 
 use http_body_util::combinators::BoxBody;
 use hyper::{body::Bytes, Response};
@@ -6,7 +6,7 @@ use mime_guess::from_path;
 
 use crate::util::{empty, format_date_time};
 
-pub async fn handle_resp(file_path: &PathBuf) -> Response<BoxBody<Bytes, Infallible>> {
+pub async fn handle_resp(file_path: &PathBuf) -> Response<BoxBody<Bytes, std::io::Error>> {
     let mut response = Response::new(empty());
     let file = File::open(file_path).unwrap();
     let metadata = file.metadata().unwrap();

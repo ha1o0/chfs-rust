@@ -1,4 +1,4 @@
-use std::{convert::Infallible, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 use http_body_util::combinators::BoxBody;
 use hyper::{
@@ -9,7 +9,7 @@ use mime_guess::from_path;
 
 use crate::util::{encode_uri, format_date_time, full, get_base_dir, get_header, get_server_prefix};
 
-pub async fn handle_resp(req: &Request<Incoming>, file_path: PathBuf) -> Response<BoxBody<Bytes, Infallible>> {
+pub async fn handle_resp(req: &Request<Incoming>, file_path: PathBuf) -> Response<BoxBody<Bytes, std::io::Error>> {
     let depth = get_header(req, "depth", "0");
     let mut multistatus_xml = String::new();
     multistatus_xml.push_str(r#"<?xml version="1.0" encoding="utf-8"?>"#);
@@ -26,11 +26,11 @@ pub async fn handle_resp(req: &Request<Incoming>, file_path: PathBuf) -> Respons
     }
     multistatus_xml.push_str("</D:multistatus>\n");
 
-    return Response::builder()
+    Response::builder()
         .status(StatusCode::MULTI_STATUS)
         .header("Content-Type", "application/xml; charset=utf-8")
         .body(full(Bytes::from(multistatus_xml)))
-        .unwrap();
+        .unwrap()
 }
 
 fn generate_content_xml(
