@@ -1,15 +1,14 @@
 use std::{
-    fs::{self},
-    path::PathBuf,
+    fs, path::PathBuf
 };
 
-use http_body_util::Full;
+use http_body_util::combinators::BoxBody;
 use hyper::{body::Bytes, Response, StatusCode};
 
-use crate::util::map_io_result;
+use crate::util::{empty, map_io_result};
 
-pub async fn handle_resp(path: &PathBuf) -> Response<Full<Bytes>> {
-    let mut response = Response::new(Full::new(Bytes::from("")));
+pub async fn handle_resp(path: &PathBuf) -> Response<BoxBody<Bytes, std::io::Error>> {
+    let mut response = Response::new(empty());
     let file_result = fs::remove_file(path);
     if file_result.is_ok() {
         let status_code = map_io_result(file_result, StatusCode::NO_CONTENT);

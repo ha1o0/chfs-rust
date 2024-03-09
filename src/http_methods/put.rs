@@ -1,19 +1,19 @@
 use std::{fs::File, io::Write, path::PathBuf};
 
-use http_body_util::{BodyExt, Full};
+use http_body_util::{combinators::BoxBody, BodyExt};
 use hyper::{
     body::{Bytes, Incoming},
     Request, Response, StatusCode,
 };
 
-use crate::util::{decode_path, map_io_result};
+use crate::util::{decode_path, empty, map_io_result};
 
 pub async fn handle_resp(
     req: Request<Incoming>,
     path: &PathBuf,
-) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
+) -> Result<Response<BoxBody<Bytes, std::io::Error>>, Box<dyn std::error::Error>> {
     // 创建响应
-    let mut response = Response::new(Full::new(Bytes::from("")));
+    let mut response = Response::new(empty());
     *response.status_mut() = StatusCode::CREATED;
     // 创建用于写入的文件
     let file_result = File::create(decode_path(path));
