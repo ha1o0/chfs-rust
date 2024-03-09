@@ -28,12 +28,14 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<BoxBody<B
         );
         return Ok(resp);
     }
+    log::info!("pass auth");
     // 要挂载的目录
     let base_dir = get_base_dir(&req);
     if base_dir.len() == 0 {
         *resp.status_mut() = StatusCode::NOT_FOUND;
         return Ok(resp);
     }
+    log::info!("pass mount");
     // webdav 访问路径前缀
     let server_prefix = get_server_prefix(&req);
     let req_path = get_req_path(&req);
@@ -41,6 +43,7 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<BoxBody<B
     path = path.replacen(&server_prefix, "", 1);
     // 被访问资源绝对路径
     let file_path = Path::new(&base_dir).join(path.trim_start_matches('/'));
+    log::info!("req_path: {}, path: {}, file_path: {:?}", req_path, path, file_path);
     if (method != Method::from(ExtendMethod::MKCOL)
         && method != Method::PUT
         && !file_path.exists()
@@ -48,9 +51,10 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<BoxBody<B
         || !req_path.starts_with(&server_prefix)
     {
         *resp.status_mut() = StatusCode::NOT_FOUND;
+        log::info!("not found");
         return Ok(resp);
     }
-
+    log::info!("pass source");
     // 权限校验
     let permission = current_user_rule.unwrap().permission.to_uppercase();
     let mut has_permission = true;
@@ -71,7 +75,7 @@ pub async fn handle_request(req: Request<Incoming>) -> Result<Response<BoxBody<B
         *resp.status_mut() = StatusCode::FORBIDDEN;
         return Ok(resp);
     }
-
+    log::info!("pass permission");
     // 实现各个 HTTP 方法
     if method == Method::from(ExtendMethod::PROPFIND) {
         resp = propfind::handle_resp(&req, file_path).await;

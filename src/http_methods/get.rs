@@ -16,7 +16,7 @@ use crate::{config, util::{empty, full, get_header}};
 pub async fn handle_resp(req: &Request<Incoming>, file_path: &PathBuf) -> Response<BoxBody<Bytes, std::io::Error>> {
     let mut response = Response::new(empty());
     let range = get_header(req, "range", "");
-    if range.len() > 0 {
+    if range.len() > 0 && range != "bytes=0-" {
         let mut file = File::open(file_path).unwrap();
         let metadata = file.metadata().unwrap();
         let file_len = metadata.len();

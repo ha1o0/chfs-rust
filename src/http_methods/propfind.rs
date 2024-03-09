@@ -14,6 +14,7 @@ pub async fn handle_resp(req: &Request<Incoming>, file_path: PathBuf) -> Respons
     let mut multistatus_xml = String::new();
     multistatus_xml.push_str(r#"<?xml version="1.0" encoding="utf-8"?>"#);
     multistatus_xml.push_str(r#"<D:multistatus xmlns:D="DAV:">"#);
+    log::info!("start depth");
     if depth == "0" {
         generate_content_xml(req, &mut multistatus_xml, file_path);
     } else {
@@ -25,6 +26,7 @@ pub async fn handle_resp(req: &Request<Incoming>, file_path: PathBuf) -> Respons
         }
     }
     multistatus_xml.push_str("</D:multistatus>\n");
+    log::info!("xml: {}", multistatus_xml);
 
     Response::builder()
         .status(StatusCode::MULTI_STATUS)
